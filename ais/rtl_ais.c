@@ -59,6 +59,7 @@ int16_t *merged;
 int merged_len;
 FILE *file;
 int oversample = 0;
+int dc_filter = 1;
 
 /* signals are not threadsafe by default */
 #define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
@@ -86,6 +87,7 @@ struct demod_state
 	int      result_len;
 	int      now_r, now_j;
 	int      pre_r, pre_j;
+	int      dc_avg;  // really should get its own struct
 };
 
 struct upsample_stereo
@@ -124,7 +126,8 @@ void usage(void)
 		"\t    minimum value, might be up to 2x specified\n"
 		"\t[-o output_rate (default: 48k)]\n"
 		"\t    must be equal or greater than twice -s value\n"
-		"\t[-E toggle edge tuning (default: on)]\n"
+		"\t[-E toggle edge tuning (default: off)]\n"
+		"\t[-D toggle DC filter (default: on)]\n"
 		//"\t[-O toggle oversampling (default: off)\n"
 		"\t[-d device_index (default: 0)]\n"
 		"\t[-g tuner_gain (default: automatic)]\n"
@@ -288,6 +291,21 @@ void demodulate(struct demod_state *d)
 	d->pre_j = buf[d->buf_len - 1];
 }
 
+void dc_block_filter(struct demod_state *d)
+{
+	int i, avg;
+	int64_t sum = 0;
+	int16_t *result = d->result;
+	for (i=0; i < d->result_len; i++) {
+		sum += result[i];
+	}
+	avg = sum / d->result_len;
+	avg = (avg + d->dc_avg * 9) / 10;
+	for (i=0; i < d->result_len; i++) {
+		result[i] -= avg;
+	}
+	d->dc_avg = avg;
+}
 
 void arbitrary_upsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
 /* linear interpolation, len1 < len2 */
@@ -348,6 +366,8 @@ static void *demod_thread_fn(void *arg)
 		downsample(&left);
 		memcpy(left_demod.buf, left.buf, 2*left.len_out);
 		demodulate(&left_demod);
+		if (dc_filter) {
+			dc_block_filter(&left_demod);}
 		//if (oversample) {
 		//	downsample(&left);}
 		arbitrary_upsample(left_demod.result, stereo.buf_left, left_demod.result_len, stereo.bl_len);
@@ -355,6 +375,8 @@ static void *demod_thread_fn(void *arg)
 		downsample(&right);
 		memcpy(right_demod.buf, right.buf, 2*right.len_out);
 		demodulate(&right_demod);
+		if (dc_filter) {
+			dc_block_filter(&right_demod);}
 		//if (oversample) {
 		//	downsample(&right);}
 		arbitrary_upsample(right_demod.result, stereo.buf_right, right_demod.result_len, stereo.br_len);
@@ -407,11 +429,11 @@ int main(int argc, char **argv)
 	int sample_rate = 12000;
 	int output_rate = 48000;
 	int dongle_freq, dongle_rate, delta;
-	int edge = 1;
+	int edge = 0;
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EOd:g:p:h")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:h")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -428,6 +450,9 @@ int main(int argc, char **argv)
 			break;
 		case 'E':
 			edge = !edge;
+			break;
+		case 'D':
+			dc_filter = !dc_filter;
 			break;
 		case 'O':
 			oversample = !oversample;
@@ -503,6 +528,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Edge tuning enabled.\n");
 	} else {
 		fprintf(stderr, "Edge tuning disabled.\n");
+	}
+	if (dc_filter) {
+		fprintf(stderr, "DC filter enabled.\n");
+	} else {
+		fprintf(stderr, "DC filter disabled.\n");
 	}
 	fprintf(stderr, "Buffer size: %0.2f mS\n", 1000 * (double)DEFAULT_BUF_LENGTH / (double)dongle_rate);
 	fprintf(stderr, "Downsample factor: %i\n", both.downsample * left.downsample);
