@@ -12,6 +12,7 @@ path = sys.argv[1]
 output = sys.argv[2]
 freq_shift=-50 #if use upconverter
 time_label_interval=1800 #seconds
+time_line_marker = False
 
 raw_data = lambda: open(path)
 if path.endswith('.gz'):
@@ -123,6 +124,8 @@ for time in times:
     label_diff=label_time - label_last
     if label_diff.seconds >= time_label_interval:
         draw.text((2, y), '%s' % time[11:11+5], font=font, fill='white')
+        if time_line_marker:
+            draw.line((0, y, img.size[0], y), fill='white', width=1)
         label_last=label_time
     y+=1
 
