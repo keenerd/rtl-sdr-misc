@@ -1,4 +1,4 @@
-#! /usr/bin/env python2
+#!/usr/bin/env python
 
 from PIL import Image, ImageDraw, ImageFont
 import sys, gzip, math, colorsys, datetime
@@ -10,6 +10,8 @@ from itertools import *
 
 path = sys.argv[1]
 output = sys.argv[2]
+freq_shift=-50 #if use upconverter
+time_label_interval=1800 #seconds
 
 raw_data = lambda: open(path)
 if path.endswith('.gz'):
@@ -20,25 +22,6 @@ def frange(start, stop, step):
     while (i*step + start <= stop):
         yield i*step + start
         i += 1
-
-def min_filter(row):
-    size = 3
-    result = []
-    for i in range(size):
-        here = row[i]
-        near = row[0:i] + row[i+1:size]
-        if here > min(near):
-            result.append(here)
-            continue
-        result.append(min(near))
-    for i in range(size-1, len(row)):
-        here = row[i]
-        near = row[i-(size-1):i]
-        if here > min(near):
-            result.append(here)
-            continue
-        result.append(min(near))
-    return result
 
 print("loading")
 
@@ -67,7 +50,6 @@ for line in raw_data():
     times.add(t)
 
     zs = line[6:]
-    #zs = min_filter(line[6:])
     min_z = min(min_z, min(z for z in zs if not math.isinf(z)))
     max_z = max(max_z, max(zs))
 
@@ -112,13 +94,11 @@ for line in raw_data():
     high = line[3]
     step = line[4]
     x_start = freqs.index(low)
-    zs = line[6:]
-    #zs = min_filter(line[6:])
-    for i in range(len(zs)):
+    for i in range(len(line[6:])):
         x = x_start + i
         if x >= x_size:
             continue
-        z = zs[i]
+        z = line[6+i]
         # fast check for nan/-inf
         if not z >= min_z:
             z = min_z
@@ -132,25 +112,38 @@ for label in labels:
     y = 10
     #x = freqs.index(label)
     x = int((label-min(freqs)) / pixel_width)
-    s = '%.3fMHz' % (label/1000000.0)
+    s = '%.3fMHz' % (label/1000000.0+freq_shift)
     draw.text((x, y), s, font=font, fill='white')
 
+# time labels
+y=0
+label_last = start
+for time in times:
+    label_time=datetime.datetime.strptime(time, '%Y-%m-%d %H:%M:%S')
+    label_diff=label_time - label_last
+    if label_diff.seconds >= time_label_interval:
+        draw.text((2, y), '%s' % time[11:11+5], font=font, fill='white')
+        label_last=label_time
+    y+=1
+
 duration = stop - start
-duration = duration.seconds
+#total_time=duration
+#print(duration)
+duration = (duration.days*86400)+duration.seconds
 pixel_height = duration / len(times)
+#print(duration)
 hours = int(duration / 3600)
 minutes = int((duration - 3600*hours) / 60)
-draw.text((2, img.size[1] - 45), 'Duration: %i:%02i' % (hours, minutes), font=font, fill='white')
-draw.text((2, img.size[1] - 35), 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font=font, fill='white')
-draw.text((2, img.size[1] - 25), 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font=font, fill='white')
-draw.text((2, img.size[1] - 15), 'Started: {0}'.format(start), font=font, fill='white')
+draw.text((40, img.size[1] - 45), 'Duration:  %i:%02i' % (hours, minutes), font=font, fill='white')
+draw.text((40, img.size[1] - 35), 'Range: %.2fMHz - %.2fMHz' % ((min(freqs)/1e6)+freq_shift, (max(freqs)/1e6)+freq_shift), font=font, fill='white')
+draw.text((40, img.size[1] - 25), 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font=font, fill='white')
+draw.text((40, img.size[1] - 15), 'Started: {0}'.format(start), font=font, fill='white')
 # bin size
 
 print("saving")
-img.save(output)
-
-
-
-
-
+#img.save(output,quality=92, optimize=True)
+#img.save(output, quality=92)
+img.save(output, quality=80)
+print(start)
+print(stop)
 
