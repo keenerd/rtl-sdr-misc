@@ -41,6 +41,8 @@ def psd(data, bin_count, averages):
         dc_bias = sum(sub_data) / len(sub_data)
         #sub_data -= dc_bias
         fft = numpy.fft.fft(sub_data)
+        if len(fft) != bin_count:
+            continue
         table[-1] = table[-1] + numpy.real(numpy.conjugate(fft)*fft)
         ave += 1
         if ave >= averages:
