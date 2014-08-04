@@ -110,6 +110,9 @@ def slice_columns(columns, low_freq, high_freq):
         stop_col  = sum(f<=args.high_freq for f in columns)
     return start_col, stop_col-1
 
+def parse_time(t):
+    return datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
+
 freqs = set()
 f_cache = set()
 times = set()
@@ -148,8 +151,8 @@ for line in raw_data():
     max_z = max(max_z, max(zs))
 
     if start is None:
-        start = datetime.datetime.strptime(line[0] + ' ' + line[1], '%Y-%m-%d %H:%M:%S')
-    stop = datetime.datetime.strptime(line[0] + ' ' + line[1], '%Y-%m-%d %H:%M:%S')
+        start = parse_time(line[0] + ' ' + line[1])
+    stop = parse_time(line[0] + ' ' + line[1])
 
 freqs = list(sorted(list(freqs)))
 times = list(sorted(list(times)))
@@ -216,7 +219,7 @@ for label in labels:
     draw.text((x, y), s, font=font, fill='white')
 
 duration = stop - start
-duration = duration.seconds
+duration = duration.days * 24*60*60 + duration.seconds + 30
 pixel_height = duration / len(times)
 hours = int(duration / 3600)
 minutes = int((duration - 3600*hours) / 60)
