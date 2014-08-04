@@ -7,11 +7,9 @@ from itertools import *
 
 # todo:
 # matplotlib powered --interactive
-# longer than 24 hours stuff
 # arbitrary freq marker spacing
 # pksato's timestamps
 # ppm
-# converter shift
 # blue-less marker grid
 # fast summary thing
 # time-based slicing
@@ -22,6 +20,8 @@ parser.add_argument('input_path', metavar='INPUT', type=str,
     help='Input CSV file. (may be a .csv.gz)')
 parser.add_argument('output_path', metavar='OUTPUT', type=str,
     help='Output image. (various extensions supported)')
+parser.add_argument('--offset', dest='offset_freq', default=0,
+    help='Shift the entire frequency range, for up/down converters.')
 slicegroup = parser.add_argument_group('Slicing',
     'Efficiently render a portion of the data. (optional)')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
@@ -98,6 +98,8 @@ if args.low_freq is not None:
     args.low_freq = freq_parse(args.low_freq)
 if args.high_freq is not None:
     args.high_freq = freq_parse(args.high_freq)
+if args.offset_freq is not None:
+    args.offset_freq = freq_parse(args.offset_freq)
 
 print("loading")
 
@@ -125,8 +127,8 @@ for line in raw_data():
     #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
     line = [s for s in line if s]
 
-    low  = int(line[2])
-    high = int(line[3])
+    low  = int(line[2]) + args.offset_freq
+    high = int(line[3]) + args.offset_freq
     step = float(line[4])
     if args.low_freq  is not None and high < args.low_freq:
         continue
@@ -188,8 +190,8 @@ for line in raw_data():
     if t not in times:
         continue  # happens with live files
     y = times.index(t)
-    low = int(line[2])
-    high = int(line[3])
+    low = int(line[2]) + args.offset_freq
+    high = int(line[3]) + args.offset_freq
     step = float(line[4])
     columns = list(frange(low, high, step))
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
