@@ -20,8 +20,10 @@ parser.add_argument('input_path', metavar='INPUT', type=str,
     help='Input CSV file. (may be a .csv.gz)')
 parser.add_argument('output_path', metavar='OUTPUT', type=str,
     help='Output image. (various extensions supported)')
-parser.add_argument('--offset', dest='offset_freq', default=0,
+parser.add_argument('--offset', dest='offset_freq', default=None,
     help='Shift the entire frequency range, for up/down converters.')
+parser.add_argument('--ytick', dest='time_tick', default=None,
+    help='Place ticks along the Y axis every N seconds.')
 slicegroup = parser.add_argument_group('Slicing',
     'Efficiently render a portion of the data. (optional)')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
@@ -77,6 +79,30 @@ def freq_parse(s):
         s = s[:-1]
     return float(s) * suffix
 
+def freq_parse(s):
+    suffix = 1
+    if s.lower().endswith('k'):
+        suffix = 1e3
+    if s.lower().endswith('m'):
+        suffix = 1e6
+    if s.lower().endswith('g'):
+        suffix = 1e9
+    if suffix != 1:
+        s = s[:-1]
+    return float(s) * suffix
+
+def duration_parse(s):
+    suffix = 1
+    if s.lower().endswith('s'):
+        suffix = 1
+    if s.lower().endswith('m'):
+        suffix = 60
+    if s.lower().endswith('h'):
+        suffix = 60 * 60
+    if suffix != 1 or s.lower().endswith('s'):
+        s = s[:-1]
+    return float(s) * suffix
+
 def gzip_wrap(path):
     "hides silly CRC errors"
     iterator = gzip.open(path, 'rb')
@@ -100,6 +126,10 @@ if args.high_freq is not None:
     args.high_freq = freq_parse(args.high_freq)
 if args.offset_freq is not None:
     args.offset_freq = freq_parse(args.offset_freq)
+else:
+    args.offset_freq = 0
+if args.time_tick is not None:
+    args.time_tick = duration_parse(args.time_tick)
 
 print("loading")
 
@@ -220,15 +250,28 @@ for label in labels:
     s = '%.3fMHz' % (label/1000000.0)
     draw.text((x, y), s, font=font, fill='white')
 
+if args.time_tick:
+    label_last = start
+    for y,t in enumerate(times):
+        label_time = parse_time(t)
+        label_diff = label_time - label_last
+        if label_diff.seconds >= args.time_tick:
+            draw.text((2, y), '%s' % t.split(' ')[-1], font=font, fill='white')
+            label_last = label_time
+
+
 duration = stop - start
 duration = duration.days * 24*60*60 + duration.seconds + 30
 pixel_height = duration / len(times)
 hours = int(duration / 3600)
 minutes = int((duration - 3600*hours) / 60)
-draw.text((2, img.size[1] - 45), 'Duration: %i:%02i' % (hours, minutes), font=font, fill='white')
-draw.text((2, img.size[1] - 35), 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font=font, fill='white')
-draw.text((2, img.size[1] - 25), 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font=font, fill='white')
-draw.text((2, img.size[1] - 15), 'Started: {0}'.format(start), font=font, fill='white')
+margin = 2
+if args.time_tick:
+    margin = 60
+draw.text((margin, img.size[1] - 45), 'Duration: %i:%02i' % (hours, minutes), font=font, fill='white')
+draw.text((margin, img.size[1] - 35), 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font=font, fill='white')
+draw.text((margin, img.size[1] - 25), 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font=font, fill='white')
+draw.text((margin, img.size[1] - 15), 'Started: {0}'.format(start), font=font, fill='white')
 # bin size
 
 print("saving")
