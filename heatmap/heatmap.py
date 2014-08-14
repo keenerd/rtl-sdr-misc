@@ -8,7 +8,6 @@ from itertools import *
 # todo:
 # matplotlib powered --interactive
 # arbitrary freq marker spacing
-# pksato's timestamps
 # ppm
 # blue-less marker grid
 # fast summary thing
@@ -40,6 +39,11 @@ slicegroup.add_argument('--head', dest='head_time', default=None,
 slicegroup.add_argument('--tail', dest='tail_time', default=None,
     help='Duration to use, stopping at the end.')
 """
+
+# hack, http://stackoverflow.com/questions/9025204/
+for i, arg in enumerate(sys.argv):
+    if (arg[0] == '-') and arg[1].isdigit():
+        sys.argv[i] = ' ' + arg
 args = parser.parse_args()
 
 def frange(start, stop, step):
