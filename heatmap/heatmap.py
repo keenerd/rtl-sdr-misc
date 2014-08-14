@@ -83,18 +83,6 @@ def freq_parse(s):
         s = s[:-1]
     return float(s) * suffix
 
-def freq_parse(s):
-    suffix = 1
-    if s.lower().endswith('k'):
-        suffix = 1e3
-    if s.lower().endswith('m'):
-        suffix = 1e6
-    if s.lower().endswith('g'):
-        suffix = 1e9
-    if suffix != 1:
-        s = s[:-1]
-    return float(s) * suffix
-
 def duration_parse(s):
     suffix = 1
     if s.lower().endswith('s'):
