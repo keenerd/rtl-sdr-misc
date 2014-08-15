@@ -23,6 +23,8 @@ parser.add_argument('--offset', dest='offset_freq', default=None,
     help='Shift the entire frequency range, for up/down converters.')
 parser.add_argument('--ytick', dest='time_tick', default=None,
     help='Place ticks along the Y axis every N seconds.')
+parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
+    help='Maximum and minimum db values.')
 slicegroup = parser.add_argument_group('Slicing',
     'Efficiently render a portion of the data. (optional)')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
@@ -144,6 +146,11 @@ labels = set()
 min_z = 0
 max_z = -100
 start, stop = None, None
+
+if args.db_limit:
+    min_z = min(map(float, args.db_limit))
+    max_z = max(map(float, args.db_limit))
+
 for line in raw_data():
     line = [s.strip() for s in line.strip().split(',')]
     #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
@@ -168,11 +175,12 @@ for line in raw_data():
     t = line[0] + ' ' + line[1]
     times.add(t)
 
-    zs = line[6+start_col:6+stop_col+1]
-    zs = [float(z) for z in zs]
-    #zs = min_filter(line[6:])
-    min_z = min(min_z, min(z for z in zs if not math.isinf(z)))
-    max_z = max(max_z, max(zs))
+    if not args.db_limit:
+        zs = line[6+start_col:6+stop_col+1]
+        zs = [float(z) for z in zs]
+        #zs = min_filter(line[6:])
+        min_z = min(min_z, min(z for z in zs if not math.isinf(z)))
+        max_z = max(max_z, max(zs))
 
     if start is None:
         start = parse_time(line[0] + ' ' + line[1])
