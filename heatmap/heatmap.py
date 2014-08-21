@@ -48,6 +48,13 @@ for i, arg in enumerate(sys.argv):
         sys.argv[i] = ' ' + arg
 args = parser.parse_args()
 
+try:
+    font = ImageFont.truetype("Vera.ttf", 10)
+except:
+    print('Please download the Vera.ttf font and place it in the current directory.')
+    sys.exit(1)
+
+
 def frange(start, stop, step):
     i = 0
     while (i*step + start <= stop):
@@ -209,7 +216,8 @@ def rgb3(z):
     return (int(c[0]*256),int(c[1]*256),int(c[2]*256))
 
 print("drawing")
-img = Image.new("RGB", (len(freqs), len(times)))
+tape_height = 25
+img = Image.new("RGB", (len(freqs), tape_height + len(times)))
 pix = img.load()
 x_size = img.size[0]
 for line in raw_data():
@@ -237,18 +245,92 @@ for line in raw_data():
         # fast check for nan/-inf
         if not z >= min_z:
             z = min_z
-        pix[x,y] = rgb2(z)
+        pix[x,y+tape_height] = rgb2(z)
+
+def closest_index(n, m_list):
+    error = max(m_list)
+    best = -1
+    for i,m in enumerate(m_list):
+        e2 = abs(m-n)
+        if e2 > error:
+            continue
+        error = e2
+        best = i
+    return best
+
+def word_aa(label, pt, fg_color, bg_color):
+    f = ImageFont.truetype("Vera.ttf", pt*3)
+    s = f.getsize(label)
+    s = (s[0], int(s[1]*1.5))  # getsize lies
+    w_img = Image.new("RGB", s, bg_color)
+    w_draw = ImageDraw.Draw(w_img)
+    w_draw.text((0, 0), label, font=f, fill=fg_color)
+    return w_img.resize((s[0]//3, s[1]//3), Image.ANTIALIAS)
+
+def tape_lines(interval, y1, y2, used=set()):
+    "returns the number of lines"
+    low_f = (min(freqs) // interval) * interval
+    high_f = (1 + max(freqs) // interval) * interval
+    hits = 0
+    for i in range(int(low_f), int(high_f), int(interval)):
+        if i in used:
+            continue
+        if not (min(freqs) < i < max(freqs)):
+            continue
+        x = closest_index(i, freqs)
+        hits += 1
+        draw.line([x,y1,x,y2], fill='black')
+        used.add(i)
+    return hits
+
+def tape_text(interval, y, used=set()):
+    low_f = (min(freqs) // interval) * interval
+    high_f = (1 + max(freqs) // interval) * interval
+    for i in range(int(low_f), int(high_f), int(interval)):
+        if i in used:
+            continue
+        if not (min(freqs) < i < max(freqs)):
+            continue
+        x = closest_index(i, freqs)
+        s = str(i)
+        if interval >= 1e6:
+            s = '%iM' % (i/1e6)
+        elif interval > 1000:
+            s = '%ik' % ((i/1e3) % 1000)
+        else:
+            s = '%i' % (i%1000)
+        w = word_aa(s, tape_pt, 'black', 'yellow')
+        img.paste(w, (x - w.size[0]//2, y))
+        used.add(i)
 
 print("labeling")
+tape_pt = 10
 draw = ImageDraw.Draw(img)
 font = ImageFont.load_default()
 pixel_width = step
-for label in labels:
-    y = 10
-    #x = freqs.index(label)
-    x = int((label-min(freqs)) / pixel_width)
-    s = '%.3fMHz' % (label/1000000.0)
-    draw.text((x, y), s, font=font, fill='white')
+
+draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
+min_freq = min(freqs)
+max_freq = max(freqs)
+delta = max_freq - min_freq
+width = len(freqs)
+label_base = 8
+
+for i in range(8, 0, -1):
+    hits = range(0, int(2500e6), int(10**i))
+    hits = [j for j in hits if min_freq<j<max_freq]
+    if len(hits) >= 4:
+        label_base = i
+        break
+label_base = 10**label_base
+
+for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
+    hits = tape_lines(label_base/scale, y, tape_height)
+    pixels_per_hit = width / hits
+    if pixels_per_hit > 50:
+        tape_text(label_base/scale, y-tape_pt)
+    if pixels_per_hit < 6:
+        break
 
 if args.time_tick:
     label_last = start
