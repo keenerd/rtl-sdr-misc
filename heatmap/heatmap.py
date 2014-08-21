@@ -80,6 +80,25 @@ def min_filter(row):
         result.append(min(near))
     return result
 
+def floatify(zs):
+    # nix errors with -inf, windows errors with -1.#J
+    zs2 = []
+    previous = 0  # awkward for single-column rows
+    ninf = float('-inf')
+    pinf = float('inf')
+    for z in zs:
+        try:
+            z = float(z)
+        except ValueError:
+            z = previous
+        if z == ninf:
+            z = previous
+        if z == pinf:
+            z = previous
+        zs2.append(z)
+        previous = z
+    return zs2
+
 def freq_parse(s):
     suffix = 1
     if s.lower().endswith('k'):
@@ -183,10 +202,8 @@ for line in raw_data():
     times.add(t)
 
     if not args.db_limit:
-        zs = line[6+start_col:6+stop_col+1]
-        zs = [float(z) for z in zs]
-        #zs = min_filter(line[6:])
-        min_z = min(min_z, min(z for z in zs if not math.isinf(z)))
+        zs = floatify(line[6+start_col:6+stop_col+1])
+        min_z = min(min_z, min(zs))
         max_z = max(max_z, max(zs))
 
     if start is None:
@@ -234,18 +251,12 @@ for line in raw_data():
     columns = list(frange(low, high, step))
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
     x_start = freqs.index(columns[start_col])
-    #zs = line[6:]
-    #zs = min_filter(line[6:])
-    zs = line[6+start_col:6+stop_col+1]
+    zs = floatify(line[6+start_col:6+stop_col+1])
     for i in range(len(zs)):
         x = x_start + i
         if x >= x_size:
             continue
-        z = float(zs[i])
-        # fast check for nan/-inf
-        if not z >= min_z:
-            z = min_z
-        pix[x,y+tape_height] = rgb2(z)
+        pix[x,y+tape_height] = rgb2(zs[i])
 
 def closest_index(n, m_list):
     error = max(m_list)
