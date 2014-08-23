@@ -192,17 +192,19 @@ for line in raw_data():
     columns = list(frange(low, high, step))
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
     f_key = (columns[start_col], columns[stop_col], step)
+    zs = line[6+start_col:6+stop_col+1]
     if f_key not in f_cache:
-        freqs.update(list(frange(*f_key)))
-        freqs.add(f_key[1])  # high
-        labels.add(f_key[0])  # low
+        freq2 = list(frange(*f_key))[:len(zs)]
+        freqs.update(freq2)
+        #freqs.add(f_key[1])  # high
+        #labels.add(f_key[0])  # low
         f_cache.add(f_key)
 
     t = line[0] + ' ' + line[1]
     times.add(t)
 
     if not args.db_limit:
-        zs = floatify(line[6+start_col:6+stop_col+1])
+        zs = floatify(zs)
         min_z = min(min_z, min(zs))
         max_z = max(max_z, max(zs))
 
