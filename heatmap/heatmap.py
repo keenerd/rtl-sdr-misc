@@ -259,15 +259,29 @@ for line in raw_data():
         pix[x,y+tape_height] = rgb2(zs[i])
 
 def closest_index(n, m_list):
-    error = max(m_list)
-    best = -1
-    for i,m in enumerate(m_list):
-        e2 = abs(m-n)
-        if e2 > error:
-            continue
-        error = e2
-        best = i
-    return best
+    "assumes sorted m_list"
+    i = len(m_list) // 2
+    jump = len(m_list) // 2
+    while jump > 1:
+        i_down = i - jump
+        i_here = i
+        i_up =   i + jump
+        if i_down < 0:
+            i_down = i
+        if i_up >= len(m_list):
+            i_up = i
+        e_down = abs(m_list[i_down] - n)
+        e_here = abs(m_list[i_here] - n)
+        e_up   = abs(m_list[i_up]   - n)
+        e_best = min([e_down, e_here, e_up])
+        if e_down == e_best:
+            i = i_down
+        if e_up == e_best:
+            i = i_up
+        if e_here == e_best:
+            i = i_here
+        jump = jump // 2
+    return i
 
 def word_aa(label, pt, fg_color, bg_color):
     f = ImageFont.truetype("Vera.ttf", pt*3)
@@ -332,9 +346,11 @@ width = len(freqs)
 label_base = 8
 
 for i in range(8, 0, -1):
-    hits = range(0, int(2500e6), int(10**i))
-    hits = [j for j in hits if min_freq<j<max_freq]
-    if len(hits) >= 4:
+    interval = int(10**i)
+    low_f = (min_freq // interval) * interval
+    high_f = (1 + max_freq // interval) * interval
+    hits = len(range(int(low_f), int(high_f), interval))
+    if hits >= 4:
         label_base = i
         break
 label_base = 10**label_base
