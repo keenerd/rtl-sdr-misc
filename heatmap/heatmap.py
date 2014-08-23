@@ -314,6 +314,10 @@ def tape_text(interval, y, used=set()):
         img.paste(w, (x - w.size[0]//2, y))
         used.add(i)
 
+def shadow_text(x, y, s, font, fg_color, bg_color):
+    draw.text((x+1, y+1), s, font=font, fill=bg_color)
+    draw.text((x, y), s, font=font, fill=fg_color)
+
 print("labeling")
 tape_pt = 10
 draw = ImageDraw.Draw(img)
@@ -349,7 +353,7 @@ if args.time_tick:
         label_time = parse_time(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
-            draw.text((2, y), '%s' % t.split(' ')[-1], font=font, fill='white')
+            shadow_text(2, y, '%s' % t.split(' ')[-1], font, 'white', 'black')
             label_last = label_time
 
 
@@ -361,10 +365,10 @@ minutes = int((duration - 3600*hours) / 60)
 margin = 2
 if args.time_tick:
     margin = 60
-draw.text((margin, img.size[1] - 45), 'Duration: %i:%02i' % (hours, minutes), font=font, fill='white')
-draw.text((margin, img.size[1] - 35), 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font=font, fill='white')
-draw.text((margin, img.size[1] - 25), 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font=font, fill='white')
-draw.text((margin, img.size[1] - 15), 'Started: {0}'.format(start), font=font, fill='white')
+shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font, 'white', 'black')
+shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font, 'white', 'black')
+shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font, 'white', 'black')
+shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font, 'white', 'black')
 # bin size
 
 print("saving")
