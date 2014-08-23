@@ -260,8 +260,8 @@ for line in raw_data():
             continue
         pix[x,y+tape_height] = rgb2(zs[i])
 
-def closest_index(n, m_list):
-    "assumes sorted m_list"
+def closest_index(n, m_list, interpolate=False):
+    "assumes sorted m_list, returns two points for interpolate"
     i = len(m_list) // 2
     jump = len(m_list) // 2
     while jump > 1:
@@ -283,7 +283,13 @@ def closest_index(n, m_list):
         if e_here == e_best:
             i = i_here
         jump = jump // 2
-    return i
+    if not interpolate:
+        return i
+    if n < m_list[i] and i > 0:
+        return i-1, i
+    if n > m_list[i] and i < len(m_list)-1:
+        return i, i+1
+    return i, i
 
 def word_aa(label, pt, fg_color, bg_color):
     f = ImageFont.truetype("Vera.ttf", pt*3)
@@ -294,19 +300,34 @@ def word_aa(label, pt, fg_color, bg_color):
     w_draw.text((0, 0), label, font=f, fill=fg_color)
     return w_img.resize((s[0]//3, s[1]//3), Image.ANTIALIAS)
 
+def blend(percent, c1, c2):
+    "c1 and c2 are RGB tuples"
+    # probably isn't gamma correct
+    r = c1[0] * percent + c2[0] * (1 - percent)
+    g = c1[1] * percent + c2[1] * (1 - percent)
+    b = c1[2] * percent + c2[2] * (1 - percent)
+    c3 = map(int, map(round, [r,g,b]))
+    return tuple(c3)
+
 def tape_lines(interval, y1, y2, used=set()):
     "returns the number of lines"
     low_f = (min(freqs) // interval) * interval
     high_f = (1 + max(freqs) // interval) * interval
     hits = 0
+    blur = lambda p: blend(p, (255, 255, 0), (0, 0, 0))
     for i in range(int(low_f), int(high_f), int(interval)):
         if i in used:
             continue
         if not (min(freqs) < i < max(freqs)):
             continue
-        x = closest_index(i, freqs)
+        x1,x2 = closest_index(i, freqs, interpolate=True)
         hits += 1
-        draw.line([x,y1,x,y2], fill='black')
+        if x1 == x2:
+            draw.line([x1,y1,x1,y2], fill='black')
+        else:
+            percent = (i - freqs[x1]) / float(freqs[x2] - freqs[x1])
+            draw.line([x1,y1,x1,y2], fill=blur(percent))
+            draw.line([x2,y1,x2,y2], fill=blur(1-percent))
         used.add(i)
     return hits
 
