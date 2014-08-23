@@ -288,7 +288,7 @@ def closest_index(n, m_list):
 def word_aa(label, pt, fg_color, bg_color):
     f = ImageFont.truetype("Vera.ttf", pt*3)
     s = f.getsize(label)
-    s = (s[0], int(s[1]*1.5))  # getsize lies
+    s = (s[0], pt*3 + 3)  # getsize lies, manually compute
     w_img = Image.new("RGB", s, bg_color)
     w_draw = ImageDraw.Draw(w_img)
     w_draw.text((0, 0), label, font=f, fill=fg_color)
@@ -330,7 +330,7 @@ def tape_text(interval, y, used=set()):
         img.paste(w, (x - w.size[0]//2, y))
         used.add(i)
 
-def shadow_text(x, y, s, font, fg_color, bg_color):
+def shadow_text(x, y, s, font, fg_color='white', bg_color='black'):
     draw.text((x+1, y+1), s, font=font, fill=bg_color)
     draw.text((x, y), s, font=font, fill=fg_color)
 
@@ -371,7 +371,7 @@ if args.time_tick:
         label_time = parse_time(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
-            shadow_text(2, y, '%s' % t.split(' ')[-1], font, 'white', 'black')
+            shadow_text(2, y, '%s' % t.split(' ')[-1], font)
             label_last = label_time
 
 
@@ -383,10 +383,10 @@ minutes = int((duration - 3600*hours) / 60)
 margin = 2
 if args.time_tick:
     margin = 60
-shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font, 'white', 'black')
-shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font, 'white', 'black')
-shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font, 'white', 'black')
-shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font, 'white', 'black')
+shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
+shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font)
+shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font)
+shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
 # bin size
 
 print("saving")
