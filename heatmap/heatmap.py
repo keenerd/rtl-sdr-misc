@@ -84,16 +84,14 @@ def floatify(zs):
     # nix errors with -inf, windows errors with -1.#J
     zs2 = []
     previous = 0  # awkward for single-column rows
-    ninf = float('-inf')
-    pinf = float('inf')
     for z in zs:
         try:
             z = float(z)
         except ValueError:
             z = previous
-        if z == ninf:
+        if math.isinf(z):
             z = previous
-        if z == pinf:
+        if math.isnan(z):
             z = previous
         zs2.append(z)
         previous = z
