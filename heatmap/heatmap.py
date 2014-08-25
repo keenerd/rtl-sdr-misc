@@ -314,12 +314,12 @@ def tape_lines(interval, y1, y2, used=set()):
     hits = 0
     blur = lambda p: blend(p, (255, 255, 0), (0, 0, 0))
     for i in range(int(low_f), int(high_f), int(interval)):
-        if i in used:
-            continue
         if not (min(freqs) < i < max(freqs)):
             continue
-        x1,x2 = closest_index(i, freqs, interpolate=True)
         hits += 1
+        if i in used:
+            continue
+        x1,x2 = closest_index(i, freqs, interpolate=True)
         if x1 == x2:
             draw.line([x1,y1,x1,y2], fill='black')
         else:
@@ -381,7 +381,7 @@ for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
     pixels_per_hit = width / hits
     if pixels_per_hit > 50:
         tape_text(label_base/scale, y-tape_pt)
-    if pixels_per_hit < 6:
+    if pixels_per_hit < 10:
         break
 
 if args.time_tick:
@@ -403,7 +403,7 @@ margin = 2
 if args.time_tick:
     margin = 60
 shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
-shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, max(freqs)/1e6), font)
+shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, (max(freqs)+pixel_width)/1e6), font)
 shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font)
 shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
 # bin size
