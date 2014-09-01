@@ -343,8 +343,14 @@ def tape_text(interval, y, used=set()):
             s = '%iM' % (i/1e6)
         elif interval > 1000:
             s = '%ik' % ((i/1e3) % 1000)
+            if s.startswith('0'):
+                s = '%iM' % (i/1e6)
         else:
             s = '%i' % (i%1000)
+            if s.startswith('0'):
+                s = '%ik' % ((i/1e3) % 1000)
+            if s.startswith('0'):
+                s = '%iM' % (i/1e6)
         w = word_aa(s, tape_pt, 'black', 'yellow')
         img.paste(w, (x - w.size[0]//2, y))
         used.add(i)
