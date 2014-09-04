@@ -396,7 +396,7 @@ if args.time_tick:
         label_time = parse_time(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
-            shadow_text(2, y, '%s' % t.split(' ')[-1], font)
+            shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], font)
             label_last = label_time
 
 
