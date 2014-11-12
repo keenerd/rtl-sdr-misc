@@ -263,6 +263,8 @@ for line in raw_data():
     step = float(line[4])
     columns = list(frange(low, high, step))
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+    if args.high_freq and columns[start_col] > args.high_freq:
+        continue
     x_start = freqs.index(columns[start_col])
     zs = floatify(line[6+start_col:6+stop_col+1])
     for i in range(len(zs)):
