@@ -1,9 +1,17 @@
 #! /usr/bin/env python
 
 from PIL import Image, ImageDraw, ImageFont
-import sys, gzip, math, argparse, colorsys, datetime
+import os, sys, gzip, math, argparse, colorsys, datetime
 from collections import defaultdict
 from itertools import *
+
+urlretrieve = lambda a, b: None
+try:
+    import urllib.request
+    urlretrieve = urllib.request.urlretrieve
+except:
+    import urllib
+    urlretrieve = urllib.urlretrieve
 
 # todo:
 # matplotlib powered --interactive
@@ -11,8 +19,10 @@ from itertools import *
 # ppm
 # blue-less marker grid
 # fast summary thing
-# time-based slicing
 # gain normalization
+
+vera_url = "https://github.com/keenerd/rtl-sdr-misc/raw/master/heatmap/Vera.ttf"
+vera_path = os.path.join(sys.path[0], "Vera.ttf")
 
 parser = argparse.ArgumentParser(description='Convert rtl_power CSV files into graphics.')
 parser.add_argument('input_path', metavar='INPUT', type=str,
@@ -48,8 +58,11 @@ for i, arg in enumerate(sys.argv):
         sys.argv[i] = ' ' + arg
 args = parser.parse_args()
 
+if not os.path.isfile(vera_path):
+    urlretrieve(vera_url, vera_path)
+
 try:
-    font = ImageFont.truetype("Vera.ttf", 10)
+    font = ImageFont.truetype(vera_path, 10)
 except:
     print('Please download the Vera.ttf font and place it in the current directory.')
     sys.exit(1)
@@ -290,7 +303,7 @@ def closest_index(n, m_list, interpolate=False):
     return i, i
 
 def word_aa(label, pt, fg_color, bg_color):
-    f = ImageFont.truetype("Vera.ttf", pt*3)
+    f = ImageFont.truetype(vera_path, pt*3)
     s = f.getsize(label)
     s = (s[0], pt*3 + 3)  # getsize lies, manually compute
     w_img = Image.new("RGB", s, bg_color)
