@@ -36,12 +36,11 @@ parser.add_argument('--ytick', dest='time_tick', default=None,
 parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
     help='Maximum and minimum db values.')
 slicegroup = parser.add_argument_group('Slicing',
-    'Efficiently render a portion of the data. (optional)')
+    'Efficiently render a portion of the data. (optional)  Frequencies can take G/M/k suffixes.  Timestamps look like "YYYY-MM-DD HH:MM:SS"  Durations take d/h/m/s suffixes.')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
     help='Minimum frequency for a subrange.')
 slicegroup.add_argument('--high', dest='high_freq', default=None,
     help='Maximum frequency for a subrange.')
-"""
 slicegroup.add_argument('--begin', dest='begin_time', default=None,
     help='Timestamp to start at.')
 slicegroup.add_argument('--end', dest='end_time', default=None,
@@ -50,7 +49,6 @@ slicegroup.add_argument('--head', dest='head_time', default=None,
     help='Duration to use, starting at the beginning.')
 slicegroup.add_argument('--tail', dest='tail_time', default=None,
     help='Duration to use, stopping at the end.')
-"""
 
 # hack, http://stackoverflow.com/questions/9025204/
 for i, arg in enumerate(sys.argv):
@@ -130,9 +128,14 @@ def duration_parse(s):
         suffix = 60
     if s.lower().endswith('h'):
         suffix = 60 * 60
+    if s.lower().endswith('d'):
+        suffix = 24 * 60 * 60
     if suffix != 1 or s.lower().endswith('s'):
         s = s[:-1]
     return float(s) * suffix
+
+def date_parse(s):
+    return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
 
 def gzip_wrap(path):
     "hides silly CRC errors"
@@ -144,6 +147,11 @@ def gzip_wrap(path):
         except IOError:
             running = False
 
+def reparse(label, fn):
+    if args.__getattribute__(label) is None:
+        return
+    args.__setattr__(label, fn(args.__getattribute__(label)))
+
 path = args.input_path
 output = args.output_path
 
@@ -151,16 +159,28 @@ raw_data = lambda: open(path)
 if path.endswith('.gz'):
     raw_data = lambda: gzip_wrap(path)
 
-if args.low_freq is not None:
-    args.low_freq = freq_parse(args.low_freq)
-if args.high_freq is not None:
-    args.high_freq = freq_parse(args.high_freq)
-if args.offset_freq is not None:
-    args.offset_freq = freq_parse(args.offset_freq)
-else:
+reparse('low_freq', freq_parse)
+reparse('high_freq', freq_parse)
+reparse('offset_freq', freq_parse)
+if args.offset_freq is None:
     args.offset_freq = 0
-if args.time_tick is not None:
-    args.time_tick = duration_parse(args.time_tick)
+reparse('time_tick', duration_parse)
+reparse('begin_time', date_parse)
+reparse('end_time', date_parse)
+reparse('head_time', duration_parse)
+reparse('tail_time', duration_parse)
+reparse('head_time', lambda s: datetime.timedelta(seconds=s))
+reparse('tail_time', lambda s: datetime.timedelta(seconds=s))
+
+if args.begin_time and args.tail_time:
+    print("Can't combine --begin and --tail")
+    sys.exit(2)
+if args.end_time and args.head_time:
+    print("Can't combine --end and --head")
+    sys.exit(2)
+if args.head_time and args.tail_time:
+    print("Can't combine --head and --tail")
+    sys.exit(2)
 
 print("loading")
 
@@ -172,9 +192,6 @@ def slice_columns(columns, low_freq, high_freq):
     if args.high_freq is not None and low <= args.high_freq <= high:
         stop_col  = sum(f<=args.high_freq for f in columns)
     return start_col, stop_col-1
-
-def parse_time(t):
-    return datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
 
 freqs = set()
 f_cache = set()
@@ -196,10 +213,17 @@ for line in raw_data():
     low  = int(line[2]) + args.offset_freq
     high = int(line[3]) + args.offset_freq
     step = float(line[4])
+    t = line[0] + ' ' + line[1]
+
     if args.low_freq  is not None and high < args.low_freq:
         continue
     if args.high_freq is not None and args.high_freq < low:
         continue
+    if args.begin_time is not None and date_parse(t) < args.begin_time:
+        continue
+    if args.end_time is not None and date_parse(t) > args.end_time:
+        break
+    times.add(t)
     columns = list(frange(low, high, step))
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
     f_key = (columns[start_col], columns[stop_col], step)
@@ -211,17 +235,20 @@ for line in raw_data():
         #labels.add(f_key[0])  # low
         f_cache.add(f_key)
 
-    t = line[0] + ' ' + line[1]
-    times.add(t)
-
     if not args.db_limit:
         zs = floatify(zs)
         min_z = min(min_z, min(zs))
         max_z = max(max_z, max(zs))
 
     if start is None:
-        start = parse_time(line[0] + ' ' + line[1])
-    stop = parse_time(line[0] + ' ' + line[1])
+        start = date_parse(t)
+    stop = date_parse(t)
+    if args.head_time is not None and args.end_time is None:
+        args.end_time = start + args.head_time
+
+if args.tail_time is not None:
+    times = [t for t in times if date_parse(t) >= (stop - args.tail_time)]
+    start = date_parse(min(times))
 
 freqs = list(sorted(list(freqs)))
 times = list(sorted(list(times)))
@@ -256,7 +283,7 @@ for line in raw_data():
     line = [s for s in line if s]
     t = line[0] + ' ' + line[1]
     if t not in times:
-        continue  # happens with live files
+        continue  # happens with live files and time cropping
     y = times.index(t)
     low = int(line[2]) + args.offset_freq
     high = int(line[3]) + args.offset_freq
@@ -408,7 +435,7 @@ for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
 if args.time_tick:
     label_last = start
     for y,t in enumerate(times):
-        label_time = parse_time(t)
+        label_time = date_parse(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
             shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], font)
