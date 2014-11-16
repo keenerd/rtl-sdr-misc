@@ -186,7 +186,6 @@ def parse_time(t):
 freqs = set()
 f_cache = set()
 times = set()
-labels = set()
 min_z = 0
 max_z = -100
 start, stop = None, None
@@ -215,8 +214,6 @@ for line in raw_data():
     if f_key not in f_cache:
         freq2 = list(frange(*f_key))[:len(zs)]
         freqs.update(freq2)
-        #freqs.add(f_key[1])  # high
-        #labels.add(f_key[0])  # low
         f_cache.add(f_key)
 
     t = line[0] + ' ' + line[1]
@@ -233,14 +230,6 @@ for line in raw_data():
 
 freqs = list(sorted(list(freqs)))
 times = list(sorted(list(times)))
-labels = list(sorted(list(labels)))
-
-if len(labels) == 1:
-    delta = (max(freqs) - min(freqs)) / (len(freqs) / 500.0)
-    delta = round(delta / 10**int(math.log10(delta))) * 10**int(math.log10(delta))
-    delta = int(delta)
-    lower = int(math.ceil(min(freqs) / delta) * delta)
-    labels = list(range(lower, int(max(freqs)), delta))
 
 print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), len(times), min_z, max_z))
 
