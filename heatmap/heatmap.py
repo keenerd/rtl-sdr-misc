@@ -1,9 +1,15 @@
 #! /usr/bin/env python
 
+import os
+import json
 from PIL import Image, ImageDraw, ImageFont
 import sys, gzip, math, argparse, colorsys, datetime
 from collections import defaultdict
 from itertools import *
+
+# Version
+# Add --parameters feature
+# Can add text from --parameters
 
 # todo:
 # matplotlib powered --interactive
@@ -31,6 +37,8 @@ slicegroup.add_argument('--low', dest='low_freq', default=None,
     help='Minimum frequency for a subrange.')
 slicegroup.add_argument('--high', dest='high_freq', default=None,
     help='Maximum frequency for a subrange.')
+slicegroup.add_argument('--parameters', dest='heatmap_parameters', default=None,
+    help='heatmap parameters JSON file')
 """
 slicegroup.add_argument('--begin', dest='begin_time', default=None,
     help='Timestamp to start at.')
@@ -48,8 +56,9 @@ for i, arg in enumerate(sys.argv):
         sys.argv[i] = ' ' + arg
 args = parser.parse_args()
 
+fontsize = 10
 try:
-    font = ImageFont.truetype("Vera.ttf", 10)
+    gblfont = ImageFont.truetype("Vera.ttf", fontsize)
 except:
     print('Please download the Vera.ttf font and place it in the current directory.')
     sys.exit(1)
@@ -131,12 +140,25 @@ def gzip_wrap(path):
         except IOError:
             running = False
 
+def load_jsonfile(filename):
+    exists = os.path.isfile(filename)
+    if exists:
+        configlines = open(filename).read()
+        return json.loads(configlines)
+
+    return None
+
 path = args.input_path
 output = args.output_path
 
 raw_data = lambda: open(path)
 if path.endswith('.gz'):
     raw_data = lambda: gzip_wrap(path)
+
+# Load heatmap parameters
+heatmap_parameters = None
+if args.heatmap_parameters is not None:
+    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
 
 if args.low_freq is not None:
     args.low_freq = freq_parse(args.low_freq)
@@ -148,8 +170,6 @@ else:
     args.offset_freq = 0
 if args.time_tick is not None:
     args.time_tick = duration_parse(args.time_tick)
-
-print("loading")
 
 def slice_columns(columns, low_freq, high_freq):
     start_col = 0
@@ -175,6 +195,7 @@ if args.db_limit:
     min_z = min(map(float, args.db_limit))
     max_z = max(map(float, args.db_limit))
 
+print("loading")
 for line in raw_data():
     line = [s.strip() for s in line.strip().split(',')]
     #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
@@ -355,6 +376,48 @@ def tape_text(interval, y, used=set()):
         img.paste(w, (x - w.size[0]//2, y))
         used.add(i)
 
+# Add text in the global texts array
+def add_text(text, font = None, fg_color=None, bg_color=None):
+    textinfo = {}
+    textinfo['text'] = text
+    textinfo['font'] = font if font else gblfont
+    if fg_color:
+        textinfo['fg_color'] = fg_color
+    if bg_color:
+        textinfo['bg_color'] = bg_color
+    texts.append(textinfo)
+
+# Draw text from python list
+def draw_textfromlist(leftpos, toppos, imgsize, textlist, reverse=True):
+    textpos = toppos
+
+    if reverse:
+        textlist = reversed(textlist)
+
+    for textinfo in textlist:
+        # Get default text parameters
+        font = textinfo['font'] if 'font' in textinfo else gblfont
+        fg_color = textinfo['fg_color'] if 'fg_color' in textinfo else 'white'
+        bg_color = textinfo['bg_color'] if 'bg_color' in textinfo else 'black'
+
+        # Draw text
+        text = textinfo['text']
+        shadow_text(leftpos, imgsize - (textpos + fontsize), text, font, fg_color, bg_color)
+        textpos += fontsize
+
+# Concatenate texts content (defaut heatmap and from --parameters)
+def draw_texts(leftpos, imgsize):
+    textpos = 5
+
+    alltexts = []
+    alltexts = alltexts + texts
+    if heatmap_parameters and 'texts' in heatmap_parameters:
+        alltexts = alltexts + heatmap_parameters['texts']
+
+    reverse = 'reversetextsorder' in heatmap_parameters and heatmap_parameters['reversetextsorder'] == True
+    draw_textfromlist(leftpos, textpos, imgsize, alltexts, reverse)
+
+
 def shadow_text(x, y, s, font, fg_color='white', bg_color='black'):
     draw.text((x+1, y+1), s, font=font, fill=bg_color)
     draw.text((x, y), s, font=font, fill=fg_color)
@@ -362,7 +425,7 @@ def shadow_text(x, y, s, font, fg_color='white', bg_color='black'):
 print("labeling")
 tape_pt = 10
 draw = ImageDraw.Draw(img)
-font = ImageFont.load_default()
+gblfont = ImageFont.load_default()
 pixel_width = step
 
 draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
@@ -396,7 +459,7 @@ if args.time_tick:
         label_time = parse_time(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
-            shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], font)
+            shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], gblfont)
             label_last = label_time
 
 
@@ -405,14 +468,19 @@ duration = duration.days * 24*60*60 + duration.seconds + 30
 pixel_height = duration / len(times)
 hours = int(duration / 3600)
 minutes = int((duration - 3600*hours) / 60)
+
+# Show the text
+imgheight = img.size[1]
 margin = 2
 if args.time_tick:
     margin = 60
-shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
-shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, (max(freqs)+pixel_width)/1e6), font)
-shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font)
-shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
-# bin size
+
+texts = []
+add_text('Started: {0}'.format(start))
+add_text('Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))))
+add_text('Range: %.2fMHz - %.2fMHz' % (min(freqs) / 1e6, (max(freqs) + pixel_width) / 1e6))
+add_text('Duration: %i:%02i' % (hours, minutes))
+draw_texts(margin, imgheight)
 
 print("saving")
 img.save(output)
