@@ -403,7 +403,7 @@ def draw_texts(leftpos, imgsize):
     if heatmap_parameters and 'texts' in heatmap_parameters:
         alltexts = alltexts + heatmap_parameters['texts']
 
-    reverse = 'reversetextsorder' in heatmap_parameters and heatmap_parameters['reversetextsorder'] == True
+    reverse = heatmap_parameters and 'reversetextsorder' in heatmap_parameters and heatmap_parameters['reversetextsorder'] == True
     draw_textfromlist(leftpos, textpos, imgsize, alltexts, reverse)
 
 
