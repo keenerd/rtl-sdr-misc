@@ -155,10 +155,6 @@ raw_data = lambda: open(path)
 if path.endswith('.gz'):
     raw_data = lambda: gzip_wrap(path)
 
-# Load heatmap parameters
-heatmap_parameters = None
-if args.heatmap_parameters is not None:
-    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
 
 if args.low_freq is not None:
     args.low_freq = freq_parse(args.low_freq)
@@ -190,9 +186,21 @@ min_z = 0
 max_z = -100
 start, stop = None, None
 
+db_limit_isset = False
 if args.db_limit:
     min_z = min(map(float, args.db_limit))
     max_z = max(map(float, args.db_limit))
+    db_limit_isset = True
+
+# Load heatmap parameters
+heatmap_parameters = None
+if args.heatmap_parameters is not None:
+    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
+
+    if heatmap_parameters and 'db' in heatmap_parameters:
+        min_z = heatmap_parameters['db']['min']
+        max_z = heatmap_parameters['db']['max']
+        db_limit_isset = True
 
 print("loading")
 for line in raw_data():
@@ -219,7 +227,7 @@ for line in raw_data():
     t = line[0] + ' ' + line[1]
     times.add(t)
 
-    if not args.db_limit:
+    if not db_limit_isset:
         zs = floatify(zs)
         min_z = min(min_z, min(zs))
         max_z = max(max_z, max(zs))
