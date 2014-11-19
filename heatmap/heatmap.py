@@ -50,19 +50,304 @@ slicegroup.add_argument('--tail', dest='tail_time', default=None,
     help='Duration to use, stopping at the end.')
 """
 
+class HeatmapGenerator(object):
+
+    fontsize = 10
+    font = None
+    tape_height = 25
+    tape_pt = 10
+    min_z = 100
+    max_z = -100
+    low_freq = None
+    high_freq = None
+    offset_freq = 0
+    time_tick = None
+    db_limit_isset = False
+    img = None
+    csv_path = ""
+    png_path = ""
+    texts = []
+
+    def __init__(self,):
+        try:
+            self.font = ImageFont.truetype("Vera.ttf", self.fontsize)
+        except:
+            print('Please download the Vera.ttf font and place it in the current directory.')
+            sys.exit(1)
+
+    # Init image object
+    def init_heatmap(self):
+        self.img_width = len(self.freqs)
+        self.img_height = self.tape_height + len(self.times)
+        self.img = Image.new("RGB", (self.img_width, self.img_height))
+
+    # Save image object to file
+    def save(self, filename):
+        print("saving")
+        self.img.save(filename)
+
+    # Overide minimal and maximal dB limit
+    def set_db_limit(self, min_z, max_z):
+        self.db_limit_isset = True
+        self.min_z = min(min_z, max_z)
+        self.max_z = max(min_z, max_z)
+
+    # Calc power db level color
+    def rgb2(self, z):
+        g = (z - self.min_z) / (self.max_z - self.min_z)
+        return (int(g*255), int(g*255), 50)
+
+    # Compute the CSV datas summary
+    def calcSummary(self, filename):
+        self.freqs = set()
+        f_cache = set()
+        self.times = set()
+        self.start, self.stop = None, None
+
+        # Create a loader function
+        raw_data = lambda: open(filename)
+        if filename.endswith('.gz'):
+            raw_data = lambda: gzip_wrap(filename)
+
+        # Load CSV datas
+        print("loading")
+        for line in raw_data():
+            line = [s.strip() for s in line.strip().split(',')]
+            #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
+            line = [s for s in line if s]
+
+            low  = int(line[2]) + self.offset_freq
+            high = int(line[3]) + self.offset_freq
+            self.step = float(line[4])
+            if self.low_freq  is not None and high < self.low_freq:
+                continue
+            if self.high_freq is not None and self.high_freq < low:
+                continue
+            columns = list(frange(low, high, self.step))
+            start_col, stop_col = slice_columns(columns, self.low_freq, self.high_freq)
+            f_key = (columns[start_col], columns[stop_col], self.step)
+            zs = line[6+start_col:6+stop_col+1]
+            if f_key not in f_cache:
+                freq2 = list(frange(*f_key))[:len(zs)]
+                self.freqs.update(freq2)
+                f_cache.add(f_key)
+
+            t = line[0] + ' ' + line[1]
+            self.times.add(t)
+
+            if not self.db_limit_isset:
+                zs = floatify(zs)
+                self.min_z = min(self.min_z, min(zs))
+                self.max_z = max(self.max_z, max(zs))
+
+            if self.start is None:
+                self.start = parse_time(line[0] + ' ' + line[1])
+            self.stop = parse_time(line[0] + ' ' + line[1])
+
+        self.freqs = list(sorted(list(self.freqs)))
+        self.times = list(sorted(list(self.times)))
+
+        print("x: %i, y: %i, z: (%f, %f)" % (len(self.freqs), len(self.times), self.min_z, self.max_z))
+
+
+    # Draw the rtl_power signal result
+    def draw_heatmap(self, filename):
+        # Create a loader function
+        raw_data = lambda: open(filename)
+        if filename.endswith('.gz'):
+            raw_data = lambda: gzip_wrap(filename)
+
+        pix = self.img.load()
+        print("drawing")
+        for line in raw_data():
+            line = [s.strip() for s in line.strip().split(',')]
+            #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
+            line = [s for s in line if s]
+            t = line[0] + ' ' + line[1]
+            if t not in self.times:
+                continue  # happens with live files
+            y = self.times.index(t)
+            low = int(line[2]) + self.offset_freq
+            high = int(line[3]) + self.offset_freq
+            step = float(line[4])
+            columns = list(frange(low, high, self.step))
+            start_col, stop_col = slice_columns(columns, self.low_freq, self.high_freq)
+            x_start = self.freqs.index(columns[start_col])
+            zs = floatify(line[6+start_col:6+stop_col+1])
+            for i in range(len(zs)):
+                x = x_start + i
+                if x >= self.img_width:
+                    continue
+                pix[x,y+self.tape_height] = self.rgb2(zs[i])
+
+    def draw_text(self):
+        duration = self.stop - self.start
+        duration = duration.days * 24*60*60 + duration.seconds + 30
+        pixel_height = duration / len(self.times)
+        hours = int(duration / 3600)
+        minutes = int((duration - 3600*hours) / 60)
+
+        # Show the text
+        margin = 2
+        if args.time_tick:
+            margin = 60
+
+        # Add Text
+        self.texts = []
+        self.add_text('Started: {0}'.format(self.start))
+        self.add_text('Pixel: %.2fHz x %is' % (self.step, int(round(pixel_height))))
+        self.add_text('Range: %.2fMHz - %.2fMHz' % (min(self.freqs) / 1e6, (max(self.freqs) + self.step) / 1e6))
+        self.add_text('Duration: %i:%02i' % (hours, minutes))
+
+        self.draw_texts(margin, self.img_height)
+
+    # Concatenate texts content (defaut heatmap and from --parameters)
+    def draw_texts(self, leftpos, imgsize):
+        textpos = 5
+
+        alltexts =  self.texts
+        if heatmap_parameters and 'texts' in heatmap_parameters:
+            alltexts = alltexts + heatmap_parameters['texts']
+
+        reverse = heatmap_parameters and 'reversetextsorder' in heatmap_parameters and heatmap_parameters['reversetextsorder'] == True
+        self.draw_textfromlist(leftpos, textpos, imgsize, alltexts, reverse)
+
+    # Draw text from python list
+    def draw_textfromlist(self, leftpos, toppos, imgsize, textlist, reverse=True):
+        textpos = toppos
+
+        if reverse:
+            textlist = reversed(textlist)
+
+        for textinfo in textlist:
+            # Get default text parameters
+            fg_color = textinfo['fg_color'] if 'fg_color' in textinfo else 'white'
+            bg_color = textinfo['bg_color'] if 'bg_color' in textinfo else 'black'
+
+            # Draw text
+            text = textinfo['text']
+            self.shadow_text(leftpos, imgsize - (textpos + self.fontsize), text, self.font, fg_color, bg_color)
+            textpos += self.fontsize
+
+    def shadow_text(self, x, y, s, font, fg_color='white', bg_color='black'):
+        draw = ImageDraw.Draw(self.img)
+        draw.text((x+1, y+1), s, font=font, fill=bg_color)
+        draw.text((x, y), s, font=font, fill=fg_color)
+
+    # Add text in the global texts array
+    def add_text(self, text, fg_color=None, bg_color=None):
+        textinfo = {}
+        textinfo['text'] = text
+
+        if fg_color:
+            textinfo['fg_color'] = fg_color
+        if bg_color:
+            textinfo['bg_color'] = bg_color
+
+        self.texts.append(textinfo)
+
+
+    def label_heatmap(self):
+        print("labeling")
+        draw = ImageDraw.Draw(self.img)
+        #gblfont = ImageFont.load_default()
+
+
+        # Init tape
+        draw.rectangle([0,0,self.img_width,self.tape_height], fill='yellow')
+        min_freq = min(self.freqs)
+        max_freq = max(self.freqs)
+        width = len(self.freqs)
+
+        # Compute label base
+        label_base = 8
+        for i in range(8, 0, -1):
+            interval = int(10**i)
+            low_f = (min_freq // interval) * interval
+            high_f = (1 + max_freq // interval) * interval
+            hits = len(range(int(low_f), int(high_f), interval))
+            if hits >= 4:
+                label_base = i
+                break
+        label_base = 10**label_base
+
+        for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
+            hits = self.tape_lines(label_base/scale, y, self.tape_height)
+            pixels_per_hit = width / hits
+            if pixels_per_hit > 50:
+                self.tape_text(label_base/scale, y-self.tape_pt)
+            if pixels_per_hit < 10:
+                break
+
+        if args.time_tick:
+            label_last = self.start
+            for y,t in enumerate(self.times):
+                label_time = parse_time(t)
+                label_diff = label_time - label_last
+                if label_diff.seconds >= args.time_tick:
+                    self.shadow_text(2, y+self.tape_height, '%s' % t.split(' ')[-1], self.font)
+                    label_last = label_time
+
+    def tape_lines(self,interval, y1, y2, used=set()):
+        "returns the number of lines"
+        draw = ImageDraw.Draw(self.img)
+        low_f = (min(self.freqs) // interval) * interval
+        high_f = (1 + max(self.freqs) // interval) * interval
+        hits = 0
+        blur = lambda p: blend(p, (255, 255, 0), (0, 0, 0))
+        for i in range(int(low_f), int(high_f), int(interval)):
+            if not (min(self.freqs) < i < max(self.freqs)):
+                continue
+            hits += 1
+            if i in used:
+                continue
+            x1,x2 = closest_index(i, self.freqs, interpolate=True)
+            if x1 == x2:
+                draw.line([x1,y1,x1,y2], fill='black')
+            else:
+                percent = (i - self.freqs[x1]) / float(self.freqs[x2] - self.freqs[x1])
+                draw.line([x1,y1,x1,y2], fill=blur(percent))
+                draw.line([x2,y1,x2,y2], fill=blur(1-percent))
+            used.add(i)
+        return hits
+
+    def tape_text(self, interval, y, used=set()):
+        low_f = (min(self.freqs) // interval) * interval
+        high_f = (1 + max(self.freqs) // interval) * interval
+        for i in range(int(low_f), int(high_f), int(interval)):
+            if i in used:
+                continue
+            if not (min(self.freqs) < i < max(self.freqs)):
+                continue
+            x = closest_index(i, self.freqs)
+            if interval >= 1e6:
+                s = '%iM' % (i/1e6)
+            elif interval > 1000:
+                s = '%ik' % ((i/1e3) % 1000)
+                if s.startswith('0'):
+                    s = '%iM' % (i/1e6)
+            else:
+                s = '%i' % (i%1000)
+                if s.startswith('0'):
+                    s = '%ik' % ((i/1e3) % 1000)
+                if s.startswith('0'):
+                    s = '%iM' % (i/1e6)
+            w = word_aa(s, self.tape_pt, 'black', 'yellow')
+            self.img.paste(w, (x - w.size[0]//2, y))
+            used.add(i)
+
+
+
 # hack, http://stackoverflow.com/questions/9025204/
 for i, arg in enumerate(sys.argv):
     if (arg[0] == '-') and arg[1].isdigit():
         sys.argv[i] = ' ' + arg
 args = parser.parse_args()
 
-fontsize = 10
-try:
-    gblfont = ImageFont.truetype("Vera.ttf", fontsize)
-except:
-    print('Please download the Vera.ttf font and place it in the current directory.')
-    sys.exit(1)
 
+########################################
+# Functions
+########################################
 
 def frange(start, stop, step):
     i = 0
@@ -70,24 +355,24 @@ def frange(start, stop, step):
         yield i*step + start
         i += 1
 
-def min_filter(row):
-    size = 3
-    result = []
-    for i in range(size):
-        here = row[i]
-        near = row[0:i] + row[i+1:size]
-        if here > min(near):
-            result.append(here)
-            continue
-        result.append(min(near))
-    for i in range(size-1, len(row)):
-        here = row[i]
-        near = row[i-(size-1):i]
-        if here > min(near):
-            result.append(here)
-            continue
-        result.append(min(near))
-    return result
+# def min_filter(row):
+#     size = 3
+#     result = []
+#     for i in range(size):
+#         here = row[i]
+#         near = row[0:i] + row[i+1:size]
+#         if here > min(near):
+#             result.append(here)
+#             continue
+#         result.append(min(near))
+#     for i in range(size-1, len(row)):
+#         here = row[i]
+#         near = row[i-(size-1):i]
+#         if here > min(near):
+#             result.append(here)
+#             continue
+#         result.append(min(near))
+#     return result
 
 def floatify(zs):
     # nix errors with -inf, windows errors with -1.#J
@@ -148,24 +433,8 @@ def load_jsonfile(filename):
 
     return None
 
-path = args.input_path
-output = args.output_path
-
-raw_data = lambda: open(path)
-if path.endswith('.gz'):
-    raw_data = lambda: gzip_wrap(path)
-
-
-if args.low_freq is not None:
-    args.low_freq = freq_parse(args.low_freq)
-if args.high_freq is not None:
-    args.high_freq = freq_parse(args.high_freq)
-if args.offset_freq is not None:
-    args.offset_freq = freq_parse(args.offset_freq)
-else:
-    args.offset_freq = 0
-if args.time_tick is not None:
-    args.time_tick = duration_parse(args.time_tick)
+def parse_time(t):
+    return datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
 
 def slice_columns(columns, low_freq, high_freq):
     start_col = 0
@@ -176,105 +445,10 @@ def slice_columns(columns, low_freq, high_freq):
         stop_col  = sum(f<=args.high_freq for f in columns)
     return start_col, stop_col-1
 
-def parse_time(t):
-    return datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
-
-freqs = set()
-f_cache = set()
-times = set()
-min_z = 0
-max_z = -100
-start, stop = None, None
-
-db_limit_isset = False
-if args.db_limit:
-    min_z = min(map(float, args.db_limit))
-    max_z = max(map(float, args.db_limit))
-    db_limit_isset = True
-
-# Load heatmap parameters
-heatmap_parameters = None
-if args.heatmap_parameters is not None:
-    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
-
-    if heatmap_parameters and 'db' in heatmap_parameters:
-        min_z = heatmap_parameters['db']['min']
-        max_z = heatmap_parameters['db']['max']
-        db_limit_isset = True
-
-print("loading")
-for line in raw_data():
-    line = [s.strip() for s in line.strip().split(',')]
-    #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
-    line = [s for s in line if s]
-
-    low  = int(line[2]) + args.offset_freq
-    high = int(line[3]) + args.offset_freq
-    step = float(line[4])
-    if args.low_freq  is not None and high < args.low_freq:
-        continue
-    if args.high_freq is not None and args.high_freq < low:
-        continue
-    columns = list(frange(low, high, step))
-    start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
-    f_key = (columns[start_col], columns[stop_col], step)
-    zs = line[6+start_col:6+stop_col+1]
-    if f_key not in f_cache:
-        freq2 = list(frange(*f_key))[:len(zs)]
-        freqs.update(freq2)
-        f_cache.add(f_key)
-
-    t = line[0] + ' ' + line[1]
-    times.add(t)
-
-    if not db_limit_isset:
-        zs = floatify(zs)
-        min_z = min(min_z, min(zs))
-        max_z = max(max_z, max(zs))
-
-    if start is None:
-        start = parse_time(line[0] + ' ' + line[1])
-    stop = parse_time(line[0] + ' ' + line[1])
-
-freqs = list(sorted(list(freqs)))
-times = list(sorted(list(times)))
-
-print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), len(times), min_z, max_z))
-
-def rgb2(z):
-    g = (z - min_z) / (max_z - min_z)
-    return (int(g*255), int(g*255), 50)
-
-def rgb3(z):
-    g = (z - min_z) / (max_z - min_z)
-    c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
-    return (int(c[0]*256),int(c[1]*256),int(c[2]*256))
-
-print("drawing")
-tape_height = 25
-img = Image.new("RGB", (len(freqs), tape_height + len(times)))
-pix = img.load()
-x_size = img.size[0]
-for line in raw_data():
-    line = [s.strip() for s in line.strip().split(',')]
-    #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
-    line = [s for s in line if s]
-    t = line[0] + ' ' + line[1]
-    if t not in times:
-        continue  # happens with live files
-    y = times.index(t)
-    low = int(line[2]) + args.offset_freq
-    high = int(line[3]) + args.offset_freq
-    step = float(line[4])
-    columns = list(frange(low, high, step))
-    start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
-    x_start = freqs.index(columns[start_col])
-    zs = floatify(line[6+start_col:6+stop_col+1])
-    for i in range(len(zs)):
-        x = x_start + i
-        if x >= x_size:
-            continue
-        pix[x,y+tape_height] = rgb2(zs[i])
+# def rgb3(z):
+#     g = (z - min_z) / (max_z - min_z)
+#     c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
+#     return (int(c[0]*256),int(c[1]*256),int(c[2]*256))
 
 def closest_index(n, m_list, interpolate=False):
     "assumes sorted m_list, returns two points for interpolate"
@@ -325,162 +499,50 @@ def blend(percent, c1, c2):
     c3 = map(int, map(round, [r,g,b]))
     return tuple(c3)
 
-def tape_lines(interval, y1, y2, used=set()):
-    "returns the number of lines"
-    low_f = (min(freqs) // interval) * interval
-    high_f = (1 + max(freqs) // interval) * interval
-    hits = 0
-    blur = lambda p: blend(p, (255, 255, 0), (0, 0, 0))
-    for i in range(int(low_f), int(high_f), int(interval)):
-        if not (min(freqs) < i < max(freqs)):
-            continue
-        hits += 1
-        if i in used:
-            continue
-        x1,x2 = closest_index(i, freqs, interpolate=True)
-        if x1 == x2:
-            draw.line([x1,y1,x1,y2], fill='black')
-        else:
-            percent = (i - freqs[x1]) / float(freqs[x2] - freqs[x1])
-            draw.line([x1,y1,x1,y2], fill=blur(percent))
-            draw.line([x2,y1,x2,y2], fill=blur(1-percent))
-        used.add(i)
-    return hits
+########################################
+# Main
+########################################
 
-def tape_text(interval, y, used=set()):
-    low_f = (min(freqs) // interval) * interval
-    high_f = (1 + max(freqs) // interval) * interval
-    for i in range(int(low_f), int(high_f), int(interval)):
-        if i in used:
-            continue
-        if not (min(freqs) < i < max(freqs)):
-            continue
-        x = closest_index(i, freqs)
-        s = str(i)
-        if interval >= 1e6:
-            s = '%iM' % (i/1e6)
-        elif interval > 1000:
-            s = '%ik' % ((i/1e3) % 1000)
-            if s.startswith('0'):
-                s = '%iM' % (i/1e6)
-        else:
-            s = '%i' % (i%1000)
-            if s.startswith('0'):
-                s = '%ik' % ((i/1e3) % 1000)
-            if s.startswith('0'):
-                s = '%iM' % (i/1e6)
-        w = word_aa(s, tape_pt, 'black', 'yellow')
-        img.paste(w, (x - w.size[0]//2, y))
-        used.add(i)
+csvpath = args.input_path
+output = args.output_path
 
-# Add text in the global texts array
-def add_text(text, font = None, fg_color=None, bg_color=None):
-    textinfo = {}
-    textinfo['text'] = text
-    textinfo['font'] = font if font else gblfont
-    if fg_color:
-        textinfo['fg_color'] = fg_color
-    if bg_color:
-        textinfo['bg_color'] = bg_color
-    texts.append(textinfo)
+heatmap_generator = HeatmapGenerator()
 
-# Draw text from python list
-def draw_textfromlist(leftpos, toppos, imgsize, textlist, reverse=True):
-    textpos = toppos
+# Check frequencies command line parameters
+if args.low_freq is not None:
+    heatmap_generator.low_freq = freq_parse(args.low_freq)
+if args.high_freq is not None:
+    heatmap_generator.high_freq = freq_parse(args.high_freq)
+if args.offset_freq is not None:
+    heatmap_generator.offset_freq = freq_parse(args.offset_freq)
 
-    if reverse:
-        textlist = reversed(textlist)
+if args.time_tick is not None:
+    heatmap_generator.time_tick = duration_parse(args.time_tick)
 
-    for textinfo in textlist:
-        # Get default text parameters
-        font = textinfo['font'] if 'font' in textinfo else gblfont
-        fg_color = textinfo['fg_color'] if 'fg_color' in textinfo else 'white'
-        bg_color = textinfo['bg_color'] if 'bg_color' in textinfo else 'black'
+# Modify dB limit
+if args.db_limit:
+    heatmap_generator.set_db_limit(min(map(float, args.db_limit)), max(map(float, args.db_limit)))
 
-        # Draw text
-        text = textinfo['text']
-        shadow_text(leftpos, imgsize - (textpos + fontsize), text, font, fg_color, bg_color)
-        textpos += fontsize
+# Load heatmap parameters
+heatmap_parameters = None
+if args.heatmap_parameters is not None:
+    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
 
-# Concatenate texts content (defaut heatmap and from --parameters)
-def draw_texts(leftpos, imgsize):
-    textpos = 5
+    # Override dB limit
+    if heatmap_parameters and 'db' in heatmap_parameters:
+        heatmap_generator.set_db_limit(heatmap_parameters['db']['min'], heatmap_parameters['db']['max'])
 
-    alltexts = []
-    alltexts = alltexts + texts
-    if heatmap_parameters and 'texts' in heatmap_parameters:
-        alltexts = alltexts + heatmap_parameters['texts']
-
-    reverse = heatmap_parameters and 'reversetextsorder' in heatmap_parameters and heatmap_parameters['reversetextsorder'] == True
-    draw_textfromlist(leftpos, textpos, imgsize, alltexts, reverse)
+# Draw Heatmap
+heatmap_generator.calcSummary(csvpath)
+heatmap_generator.init_heatmap()
+heatmap_generator.draw_heatmap(csvpath)
+heatmap_generator.label_heatmap()
+heatmap_generator.draw_text()
+heatmap_generator.save(output)
 
 
-def shadow_text(x, y, s, font, fg_color='white', bg_color='black'):
-    draw.text((x+1, y+1), s, font=font, fill=bg_color)
-    draw.text((x, y), s, font=font, fill=fg_color)
-
-print("labeling")
-tape_pt = 10
-draw = ImageDraw.Draw(img)
-gblfont = ImageFont.load_default()
-pixel_width = step
-
-draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
-min_freq = min(freqs)
-max_freq = max(freqs)
-delta = max_freq - min_freq
-width = len(freqs)
-label_base = 8
-
-for i in range(8, 0, -1):
-    interval = int(10**i)
-    low_f = (min_freq // interval) * interval
-    high_f = (1 + max_freq // interval) * interval
-    hits = len(range(int(low_f), int(high_f), interval))
-    if hits >= 4:
-        label_base = i
-        break
-label_base = 10**label_base
-
-for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
-    hits = tape_lines(label_base/scale, y, tape_height)
-    pixels_per_hit = width / hits
-    if pixels_per_hit > 50:
-        tape_text(label_base/scale, y-tape_pt)
-    if pixels_per_hit < 10:
-        break
-
-if args.time_tick:
-    label_last = start
-    for y,t in enumerate(times):
-        label_time = parse_time(t)
-        label_diff = label_time - label_last
-        if label_diff.seconds >= args.time_tick:
-            shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], gblfont)
-            label_last = label_time
 
 
-duration = stop - start
-duration = duration.days * 24*60*60 + duration.seconds + 30
-pixel_height = duration / len(times)
-hours = int(duration / 3600)
-minutes = int((duration - 3600*hours) / 60)
-
-# Show the text
-imgheight = img.size[1]
-margin = 2
-if args.time_tick:
-    margin = 60
-
-texts = []
-add_text('Started: {0}'.format(start))
-add_text('Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))))
-add_text('Range: %.2fMHz - %.2fMHz' % (min(freqs) / 1e6, (max(freqs) + pixel_width) / 1e6))
-add_text('Duration: %i:%02i' % (hours, minutes))
-draw_texts(margin, imgheight)
-
-print("saving")
-img.save(output)
 
 
 
