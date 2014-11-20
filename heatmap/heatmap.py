@@ -24,6 +24,9 @@ class HeatmapGenerator(object):
     fontsize = 10
     font = None
     tape_height = 25
+    legend_height = 0
+    waterwall_width = 0
+    waterwall_height = 0
     tape_pt = 10
     min_z = 100
     max_z = -100
@@ -38,6 +41,8 @@ class HeatmapGenerator(object):
     csv_path, png_path = "", ""
     texts = []
     img_width, img_height = 0, 0
+    heatmap_parameters = None
+    texts = []
 
     def __init__(self, ):
         try:
@@ -48,14 +53,28 @@ class HeatmapGenerator(object):
 
     # Init image object
     def init_heatmap(self):
-        self.img_width = len(self.freqs)
-        self.img_height = self.tape_height + len(self.times)
+        self.waterwall_width = len(self.freqs)
+        self.waterwall_height = len(self.times)
+
+        self.img_width = self.waterwall_width
+        self.img_height = self.tape_height + self.waterwall_height + self.legend_height
         self.img = Image.new("RGB", (self.img_width, self.img_height))
 
     # Save image object to file
     def save(self, filename):
         print("saving")
         self.img.save(filename)
+
+    # Set heatmap parameters from JSON file
+    def set_heatmap_parameters(self, content):
+        self.heatmap_parameters = content
+
+        # Override dB limit
+        if self.heatmap_parameters and 'db' in self.heatmap_parameters:
+            self.set_db_limit(self.heatmap_parameters['db']['min'], self.heatmap_parameters['db']['max'])
+
+        if self.heatmap_parameters and 'legens' in self.heatmap_parameters:
+            self.legend_height = 25
 
     # Overide minimal and maximal dB limit
     def set_db_limit(self, min_z, max_z):
@@ -127,6 +146,7 @@ class HeatmapGenerator(object):
         self.freqs = list(sorted(list(self.freqs)))
         self.times = list(sorted(list(self.times)))
 
+
         print("x: %i, y: %i, z: (%f, %f)" % (len(self.freqs), len(self.times), self.min_z, self.max_z))
 
 
@@ -159,55 +179,51 @@ class HeatmapGenerator(object):
                     continue
                 pix[x, y + self.tape_height] = self.rgb2(zs[idx])
 
-    def draw_text(self):
+    def draw_texts(self):
         duration = self.stop - self.start
         duration = duration.days * 24 * 60 * 60 + duration.seconds + 30
         pixel_height = duration / len(self.times)
         hours = int(duration / 3600)
         minutes = int((duration - 3600 * hours) / 60)
 
-        # Show the text
-        margin = 2
-        if args.time_tick:
-            margin = 60
-
         # Add Text
-        self.texts = []
         self.add_text('Started: {0}'.format(self.start))
         self.add_text('Pixel: %.2fHz x %is' % (self.step, int(round(pixel_height))))
         self.add_text('Range: %.2fMHz - %.2fMHz' % (min(self.freqs) / 1e6, (max(self.freqs) + self.step) / 1e6))
         self.add_text('Duration: %i:%02i' % (hours, minutes))
 
-        self.draw_texts(margin, self.img_height)
+        # Add text from parameters
+        if self.heatmap_parameters and 'texts' in self.heatmap_parameters:
+            self.texts = self.texts + self.heatmap_parameters['texts']
 
-    # Concatenate texts content (defaut heatmap and from --parameters)
-    def draw_texts(self, leftpos, imgsize):
-        textpos = 5
+        self.draw_textfromlist()
 
-        alltexts = self.texts
-        if heatmap_parameters and 'texts' in heatmap_parameters:
-            alltexts = alltexts + heatmap_parameters['texts']
+    def draw_legends(self):
+        pass
 
-        reverse = heatmap_parameters and 'reversetextsorder' in heatmap_parameters and heatmap_parameters[
-            'reversetextsorder']
-        self.draw_textfromlist(leftpos, textpos, imgsize, alltexts, reverse)
 
     # Draw text from python list
-    def draw_textfromlist(self, leftpos, toppos, imgsize, textlist, reverse=True):
-        textpos = toppos
+    def draw_textfromlist(self):
+        ypos = 5
+        margin = 2
+        if args.time_tick:
+            margin = 60
 
+
+        reverse = self.heatmap_parameters and 'reversetextsorder' in self.heatmap_parameters and self.heatmap_parameters[
+            'reversetextsorder']
         if reverse:
-            textlist = reversed(textlist)
+            textlist = reversed(self.texts)
 
-        for textinfo in textlist:
+        for textinfo in self.texts:
             # Get default text parameters
             fg_color = textinfo['fg_color'] if 'fg_color' in textinfo else 'white'
             bg_color = textinfo['bg_color'] if 'bg_color' in textinfo else 'black'
 
             # Draw text
             text = textinfo['text']
-            self.shadow_text(leftpos, imgsize - (textpos + self.fontsize), text, self.font, fg_color, bg_color)
-            textpos += self.fontsize
+            self.shadow_text(margin, self.img_width - (ypos + self.fontsize), text, self.font, fg_color, bg_color)
+            ypos += self.fontsize
 
     def shadow_text(self, x, y, s, font, fg_color='white', bg_color='black'):
         draw = ImageDraw.Draw(self.img)
@@ -492,7 +508,7 @@ slicegroup.add_argument('--low', dest='low_freq', default=None,
                         help='Minimum frequency for a subrange.')
 slicegroup.add_argument('--high', dest='high_freq', default=None,
                         help='Maximum frequency for a subrange.')
-slicegroup.add_argument('--parameters', dest='heatmap_parameters', default=None,
+slicegroup.add_argument('--parameters', dest='heatmap_parameters', default=None, action='append',
                         help='heatmap parameters JSON file')
 """
 slicegroup.add_argument('--begin', dest='begin_time', default=None,
@@ -530,19 +546,24 @@ if args.time_tick is not None:
 if args.db_limit:
     heatmap_generator.set_db_limit(min(map(float, args.db_limit)), max(map(float, args.db_limit)))
 
-# Load heatmap parameters
-heatmap_parameters = None
+# Load heatmap parameters JSON files
+hparameters = None
 if args.heatmap_parameters is not None:
-    heatmap_parameters = load_jsonfile(args.heatmap_parameters)
+    global_heatmap_params = {}
+    for filename in args.heatmap_parameters:
+        hparameters = load_jsonfile(filename)
+        global_heatmap_params.update(hparameters)
+    heatmap_generator.set_heatmap_parameters(global_heatmap_params)
 
-    # Override dB limit
-    if heatmap_parameters and 'db' in heatmap_parameters:
-        heatmap_generator.set_db_limit(heatmap_parameters['db']['min'], heatmap_parameters['db']['max'])
-
-# Draw Heatmap
+# Compute CSV datas
 heatmap_generator.calc_summary(args.input_path)
 heatmap_generator.init_heatmap()
+
+# Draw the heatmap
 heatmap_generator.draw_heatmap(args.input_path)
 heatmap_generator.label_heatmap()
-heatmap_generator.draw_text()
+heatmap_generator.draw_texts()
+#heatmap_generator.draw_legend()
+
+# Save the result
 heatmap_generator.save(args.output_path)
