@@ -1,0 +1,409 @@
+{
+    "legends": [
+        {
+            "text": "TLF",
+            "freq_left": 0,
+            "freq_right": 3
+        },
+        {
+            "text": "ELF",
+            "freq_left": 3,
+            "freq_right": 30
+        },
+        {
+            "text": "SLF",
+            "freq_left": 30,
+            "freq_right": 300
+        },
+        {
+            "text": "ULF",
+            "freq_left": 300,
+            "freq_right": 3e3
+        },
+        {
+            "text": "VLF",
+            "freq_left": 3e3,
+            "freq_right": 30e3
+        },
+        {
+            "text": "LF",
+            "freq_left": 30e3,
+            "freq_right": 300e3
+        },
+        {
+            "text": "MF",
+            "freq_left": 300e3,
+            "freq_right": 3e7
+        },
+        {
+            "text": "HF",
+            "freq_left": 3e7,
+            "freq_right": 30e7
+        },
+        {
+            "text": "VHF",
+            "freq_left": 30e7,
+            "freq_right": 300e7
+        },
+        {
+            "text": "UHF",
+            "freq_left": 300e7,
+            "freq_right": 3e10
+        },
+        {
+            "text": "SHF",
+            "freq_left": 3e10,
+            "freq_right": 30e10
+        },
+        {
+            "text": "EHF",
+            "freq_left": 30e10,
+            "freq_right": 300e10
+        },
+        {
+            "text": "THF",
+            "freq_left": 300e10,
+            "freq_right": 3e13
+        },
+        {
+            "text": "CB Band",
+            "freq_left":  26.965e6,
+            "freq_right":  27.405e6
+        },
+        {
+            "text": "CB 1",
+            "freq_center":  26.965e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 2",
+            "freq_center": 26.975e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 3",
+            "freq_center": 26.985e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 3b",
+            "freq_center": 26.995e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 4",
+            "freq_center": 27.005e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 5",
+            "freq_center": 27.015e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 6",
+            "freq_center": 27.025e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 7",
+            "freq_center": 27.035e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 7b",
+            "freq_center": 27.045e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 8",
+            "freq_center": 27.055e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 9",
+            "freq_center": 27.065e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 10",
+            "freq_center": 27.075e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 11",
+            "freq_center": 27.085e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 11b",
+            "freq_center": 27.095e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 12",
+            "freq_center": 27.105e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 13",
+            "freq_center": 27.115e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 14",
+            "freq_center": 27.125e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 15",
+            "freq_center": 27.135e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 15b",
+            "freq_center": 27.145e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 16",
+            "freq_center": 27.155e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 17",
+            "freq_center": 27.165e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 18",
+            "freq_center": 27.175e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 19",
+            "freq_center": 27.185e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 19b",
+            "freq_center": 27.195e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 20",
+            "freq_center": 27.205e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 21",
+            "freq_center": 27.215e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 22",
+            "freq_center": 27.225e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 23",
+            "freq_center": 27.255e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 24",
+            "freq_center": 27.235e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 25",
+            "freq_center": 27.245e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 26",
+            "freq_center": 27.265e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 27",
+            "freq_center": 27.275e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 28",
+            "freq_center": 27.285e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 29",
+            "freq_center": 27.295e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 30",
+            "freq_center": 27.305e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 31",
+            "freq_center": 27.315e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 32",
+            "freq_center": 27.325e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 33",
+            "freq_center": 27.335e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 34",
+            "freq_center": 27.345e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 35",
+            "freq_center": 27.355e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 36",
+            "freq_center": 27.365e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 37",
+            "freq_center": 27.375e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 38",
+            "freq_center": 27.385e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 39",
+            "freq_center": 27.395e6,
+            "bw": 8e3
+        },
+        {
+            "text": "CB 40",
+            "freq_center": 27.405e6,
+            "bw": 8e3
+        },
+        {
+            "text": "Radio FM",
+            "freq_left": 87.5e6,
+            "freq_right": 108e6
+        },
+        {
+            "text": "Radio AVIVA",
+            "freq_center": 88e6,
+            "bw": 160e3
+        },
+        {
+            "text": "EKO",
+            "freq_center": 88.5e6,
+            "bw": 160e3
+        },
+        {
+            "text": "France Inter",
+            "freq_center": 89.1e6,
+            "bw": 160e3
+        },
+        {
+            "text": "FM Plus",
+            "freq_center": 91e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Fun Radio",
+            "freq_center": 91.8e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Radio Clapas",
+            "freq_center": 93.5e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Divergence FM",
+            "freq_center": 93.9e6,
+            "bw": 160e3
+        },
+        {
+            "text": "MFM Radio",
+            "freq_center": 94.5e6,
+            "bw": 160e3
+        },
+        {
+            "text": "RADIO LENGA D'OC",
+            "freq_center": 95.4e6,
+            "bw": 160e3
+        },
+        {
+            "text": "France Musique",
+            "freq_center": 96.4e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Fip",
+            "freq_center": 99.7e6,
+            "bw": 160e3
+        },
+        {
+            "text": "France Bleu",
+            "freq_center": 100.6e6,
+            "bw": 160e3
+        },
+        {
+            "text": "RTL 2",
+            "freq_center": 101.7e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Le Mouv'",
+            "freq_center": 102.7e6,
+            "bw": 160e3
+        },
+        {
+            "text": "RMC",
+            "freq_center": 104.3e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Sud Radio",
+            "freq_center": 104.7e6,
+            "bw": 160e3
+        },
+        {
+            "text": "NRJ",
+            "freq_center": 105.1e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Radio Flash",
+            "freq_center": 105.6e6,
+            "bw": 160e3
+        },
+        {
+            "text": "RTS",
+            "freq_center": 106.5e6,
+            "bw": 160e3
+        },
+        {
+            "text": "RTL",
+            "freq_center": 106.9e6,
+            "bw": 160e3
+        },
+        {
+            "text": "Radio Classique",
+            "freq_center": 107.3e6,
+            "bw": 160e3
+        }
+    ]
+}

@@ -9,6 +9,7 @@ import sys, gzip, math, argparse, colorsys, datetime
 # Add --parameters feature
 # Can add text from --parameters
 # Create class & Refactoring
+# Add multiples --parameters JSON files
 
 # todo:
 # matplotlib powered --interactive
@@ -24,15 +25,19 @@ class HeatmapGenerator(object):
     fontsize = 10
     font = None
     tape_height = 25
-    legend_height = 0
-    waterwall_width = 0
+    legends_height = 0
+    legend_line_height = 8
+    max_row_legends = 2
+    legends_row = []
+    waterwall_width, waterwall_height = 0, 0
     waterwall_height = 0
     tape_pt = 10
     min_z = 100
     max_z = -100
     freqs = set()
     times = set()
-    start, stop, step = None, None, None
+    freq_left, freq_right = 0, 0
+    timestart, timestop, step = None, None, None
     low_freq, high_freq = None, None
     offset_freq = 0
     time_tick = None
@@ -57,7 +62,7 @@ class HeatmapGenerator(object):
         self.waterwall_height = len(self.times)
 
         self.img_width = self.waterwall_width
-        self.img_height = self.tape_height + self.waterwall_height + self.legend_height
+        self.img_height = self.tape_height + self.waterwall_height + self.legends_height
         self.img = Image.new("RGB", (self.img_width, self.img_height))
 
     # Save image object to file
@@ -73,8 +78,8 @@ class HeatmapGenerator(object):
         if self.heatmap_parameters and 'db' in self.heatmap_parameters:
             self.set_db_limit(self.heatmap_parameters['db']['min'], self.heatmap_parameters['db']['max'])
 
-        if self.heatmap_parameters and 'legens' in self.heatmap_parameters:
-            self.legend_height = 25
+            # if self.heatmap_parameters and 'legends' in self.heatmap_parameters:
+            # self.legend_height = 25
 
     # Overide minimal and maximal dB limit
     def set_db_limit(self, min_z, max_z):
@@ -101,7 +106,6 @@ class HeatmapGenerator(object):
         self.freqs = set()
         f_cache = set()
         self.times = set()
-        self.start, self.stop = None, None
 
         # Create a loader function
         raw_data = lambda: open(filename)
@@ -139,15 +143,23 @@ class HeatmapGenerator(object):
                 self.min_z = min(self.min_z, min(zs))
                 self.max_z = max(self.max_z, max(zs))
 
-            if self.start is None:
-                self.start = parse_time(line[0] + ' ' + line[1])
-            self.stop = parse_time(line[0] + ' ' + line[1])
+                # if self.timestart is None:
+                # self.timestart = parse_time(line[0] + ' ' + line[1])
+                # self.timestop = parse_time(line[0] + ' ' + line[1])
 
+        # Store freqs informations
         self.freqs = list(sorted(list(self.freqs)))
+        self.freq_left = self.freqs[0]
+        self.freq_right = self.freqs[-1]
+
+        # Store time informations
         self.times = list(sorted(list(self.times)))
+        self.timestart = parse_time(self.times[0])
+        self.timestop = parse_time(self.times[-1])
 
-
-        print("x: %i, y: %i, z: (%f, %f)" % (len(self.freqs), len(self.times), self.min_z, self.max_z))
+        print("File info: Freq: %.2fMHz-%.2fMHz / Time: %s-%s" % (
+            self.freq_left / 1e6, self.freq_right / 1e6, self.timestart, self.timestop))
+        print("Img info: x: %i, y: %i, z: (%f, %f)" % (len(self.freqs), len(self.times), self.min_z, self.max_z))
 
 
     # Draw the rtl_power signal result
@@ -180,14 +192,14 @@ class HeatmapGenerator(object):
                 pix[x, y + self.tape_height] = self.rgb2(zs[idx])
 
     def draw_texts(self):
-        duration = self.stop - self.start
+        duration = self.timestop - self.timestart
         duration = duration.days * 24 * 60 * 60 + duration.seconds + 30
         pixel_height = duration / len(self.times)
         hours = int(duration / 3600)
         minutes = int((duration - 3600 * hours) / 60)
 
         # Add Text
-        self.add_text('Started: {0}'.format(self.start))
+        self.add_text('Started: {0}'.format(self.timestart))
         self.add_text('Pixel: %.2fHz x %is' % (self.step, int(round(pixel_height))))
         self.add_text('Range: %.2fMHz - %.2fMHz' % (min(self.freqs) / 1e6, (max(self.freqs) + self.step) / 1e6))
         self.add_text('Duration: %i:%02i' % (hours, minutes))
@@ -198,8 +210,93 @@ class HeatmapGenerator(object):
 
         self.draw_textfromlist()
 
+    def calc_legends_height(self):
+
+        # Check if have the legends in the parameters
+        if not self.heatmap_parameters or 'legends' not in self.heatmap_parameters:
+            return
+
+        # Search legends can be show in heatmap
+        legends_can_draw = []
+        # last_freq_find_legende = 0
+        for legend in self.heatmap_parameters['legends']:
+            #if legend['freq_left'] > last_freq_find_legende:
+            if 'freq_left' in legend:
+                freq_left = legend['freq_left']
+                freq_right = legend['freq_right']
+                bw = legend['freq_right'] - legend['freq_left']
+                legend['freq_center'] = freq_left + (bw / 2)
+            else:
+                freq_left = legend['freq_center'] - (legend['bw'] / 2)
+                bw = legend['bw']
+                freq_right = freq_left + bw
+                legend['freq_left'] = freq_left
+                legend['freq_right'] = freq_right
+
+            if freq_left >= self.freq_left and freq_left <= self.freq_right:
+                if freq_right >= self.freq_left and freq_right <= self.freq_right:
+                    legend['freq_left'] = freq_left
+                    legend['bw'] = bw
+                    legends_can_draw.append(legend)
+                    #last_freq_find_legende = legend['freq_right']
+
+        # Order legends by bandwith
+        legends_can_draw = sorted(legends_can_draw, key=lambda x: x['freq_left'] - x['bw'])
+
+        legends_pos = []
+        for legend in legends_can_draw:
+            can_add = -1
+            for idx in range(len(legends_pos)):
+                if legend['freq_right'] >= legends_pos[idx]:
+                    can_add = idx
+                    break
+
+            if len(legends_pos) <= self.max_row_legends:
+                if can_add > -1:
+                    self.legends_row[can_add].append(legend)
+                    legends_pos[can_add] = legend['freq_right']
+                else:
+                    self.legends_row.append([])
+                    self.legends_row[len(self.legends_row) - 1].append(legend)
+                    legends_pos.append(legend['freq_right'])
+
+        self.legends_row.reverse()
+        self.legends_height = len(self.legends_row) * (self.fontsize + self.legend_line_height)
+
+
     def draw_legends(self):
-        pass
+        # TODO Refactoring the code for use offset,low,hight parameter
+        freqpixel = self.img_width / (self.freq_right - self.freq_left)
+        draw = ImageDraw.Draw(self.img)
+
+        nb_lines = len(self.legends_row)
+        last_line_xpos = [0] * nb_lines
+        for line in range(nb_lines):
+            for legend in self.legends_row[line]:
+
+                # Calc pixel position
+                freq_centerpos = (legend['freq_center'] - self.freq_left) * freqpixel
+                freq_leftpos = (legend['freq_left'] - self.freq_left) * freqpixel
+                freq_rightpos = ((legend['freq_left'] + legend['bw']) - self.freq_left) * freqpixel
+
+                # Calc center text
+                textsizex, textsizey = self.font.getsize(legend['text'])
+                textpos = freq_centerpos - (textsizex / 2)
+                ypos = self.img_height - self.legends_height + (line * (self.fontsize + self.legend_line_height))
+                if freq_leftpos > last_line_xpos[line]:
+                    # Draw text
+                    draw.text((textpos, ypos + self.legend_line_height), legend['text'], font=self.font, fill='white')
+                    last_line_xpos[line] = freq_leftpos + textsizex
+
+                    #Draw line
+                    color = 'white'
+                    if (freq_leftpos == freq_rightpos):
+                        color = 'yellow'
+                    draw.line(
+                        [freq_leftpos, ypos + self.legend_line_height, freq_rightpos, ypos + self.legend_line_height],
+                        fill=color)
+                    draw.line([freq_leftpos, ypos + self.legend_line_height, freq_leftpos, ypos], fill=color)
+                    draw.line([freq_rightpos, ypos + self.legend_line_height, freq_rightpos, ypos], fill=color)
 
 
     # Draw text from python list
@@ -209,11 +306,11 @@ class HeatmapGenerator(object):
         if args.time_tick:
             margin = 60
 
-
-        reverse = self.heatmap_parameters and 'reversetextsorder' in self.heatmap_parameters and self.heatmap_parameters[
-            'reversetextsorder']
+        reverse = self.heatmap_parameters and 'reversetextsorder' in self.heatmap_parameters and \
+                  self.heatmap_parameters[
+                      'reversetextsorder']
         if reverse:
-            textlist = reversed(self.texts)
+            self.texts = reversed(self.texts)
 
         for textinfo in self.texts:
             # Get default text parameters
@@ -222,7 +319,8 @@ class HeatmapGenerator(object):
 
             # Draw text
             text = textinfo['text']
-            self.shadow_text(margin, self.img_width - (ypos + self.fontsize), text, self.font, fg_color, bg_color)
+            self.shadow_text(margin, self.img_height - (ypos + self.fontsize + self.legends_height), text, self.font,
+                             fg_color, bg_color)
             ypos += self.fontsize
 
     def shadow_text(self, x, y, s, font, fg_color='white', bg_color='black'):
@@ -249,16 +347,16 @@ class HeatmapGenerator(object):
 
         # Init tape
         draw.rectangle([0, 0, self.img_width, self.tape_height], fill='yellow')
-        min_freq = min(self.freqs)
-        max_freq = max(self.freqs)
+        # freq_left = min(self.freqs)
+        # right_freq = max(self.freqs)
         width = len(self.freqs)
 
         # Compute label base
         label_base = 8
         for idx in range(8, 0, -1):
             interval = int(10 ** idx)
-            low_f = (min_freq // interval) * interval
-            high_f = (1 + max_freq // interval) * interval
+            low_f = (self.freq_left // interval) * interval
+            high_f = (1 + self.freq_right // interval) * interval
             hits = len(range(int(low_f), int(high_f), interval))
             if hits >= 4:
                 label_base = idx
@@ -274,7 +372,7 @@ class HeatmapGenerator(object):
                 break
 
         if args.time_tick:
-            label_last = self.start
+            label_last = self.timestart
             for y, t in enumerate(self.times):
                 label_time = parse_time(t)
                 label_diff = label_time - label_last
@@ -429,8 +527,6 @@ def parse_time(t):
     return datetime.datetime.strptime(t, '%Y-%m-%d %H:%M:%S')
 
 
-
-
 # def rgb3(z):
 #     g = (z - min_z) / (max_z - min_z)
 #     c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
@@ -557,13 +653,14 @@ if args.heatmap_parameters is not None:
 
 # Compute CSV datas
 heatmap_generator.calc_summary(args.input_path)
+heatmap_generator.calc_legends_height()
 heatmap_generator.init_heatmap()
 
 # Draw the heatmap
 heatmap_generator.draw_heatmap(args.input_path)
 heatmap_generator.label_heatmap()
 heatmap_generator.draw_texts()
-#heatmap_generator.draw_legend()
+heatmap_generator.draw_legends()
 
 # Save the result
 heatmap_generator.save(args.output_path)
