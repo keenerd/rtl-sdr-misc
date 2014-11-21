@@ -9,6 +9,12 @@ The script can use the parameter JSON file for customise the generating heatmap.
 
 You can see the sample result
 
+First sample
+![FM](https://raw.githubusercontent.com/badele/rtl-sdr-misc/newfeature/heatmap/fm.png)
+
+Second sample
+![FM 1](https://raw.githubusercontent.com/badele/rtl-sdr-misc/newfeature/heatmap/fm1.png)
+
 
 Contributors
 ------------
