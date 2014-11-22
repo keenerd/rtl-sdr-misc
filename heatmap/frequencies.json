@@ -66,240 +66,196 @@
             "freq_right": 3e13
         },
         {
+            "text": "12 Meters",
+            "freq_left": 24.89e6,
+            "freq_right": 24.99e6
+        },
+        {
+            "text": "Time",
+            "freq_center": 25e6,
+            "bw": 10e3
+        },
+        {
+            "text": "Fixe-mobile phone",
+            "freq_left": 25.01e6,
+            "freq_right": 25.07e6
+        },
+        {
+            "text": "Marine",
+            "freq_left": 25.07e6,
+            "freq_right": 25.21e6
+        },
+        {
+            "text": "Fixe-mobile phone",
+            "freq_left": 25.21e6,
+            "freq_right": 25.55e6
+        },
+        {
+            "text": "Radioastronomy & Jupiter noise",
+            "freq_left": 25.55e6,
+            "freq_right": 25.67e6
+        },
+        {
+            "text": "11 meters",
+            "freq_left": 25.67e6,
+            "freq_right": 26.1e6
+        },
+        {
+            "text": "Marine",
+            "freq_left": 26.1e6,
+            "freq_right": 26.31e6
+        },
+        {
+            "text": "Mobile phone",
+            "freq_left": 26.3e6,
+            "freq_right": 26.5e6,
+            "comment": "15 Channels 12.5KHz"
+        },
+        {
+            "text": "Remote command",
+            "freq_left": 26.810e6,
+            "freq_right": 26.92e6,
+            "comment": "Remote commande for modelism"
+        },
+        {
             "text": "CB Band",
-            "freq_left":  26.965e6,
-            "freq_right":  27.405e6
+            "freq_left":  26.960e6,
+            "freq_right":  27.410e6,
+            "comment": "40 Channels 10KHz"
         },
         {
-            "text": "CB 1",
-            "freq_center":  26.965e6,
-            "bw": 8e3
+            "text": "Eurobalise",
+            "freq_center":  27.095e6,
+            "bw":  10e3
         },
         {
-            "text": "CB 2",
-            "freq_center": 26.975e6,
-            "bw": 8e3
+            "text": "meteorical tools",
+            "freq_left": 27.5e6,
+            "freq_right": 28e6
         },
         {
-            "text": "CB 3",
-            "freq_center": 26.985e6,
-            "bw": 8e3
+            "text": "10 Meters",
+            "freq_left": 28e6,
+            "freq_right": 29.7e6
         },
         {
-            "text": "CB 3b",
-            "freq_center": 26.995e6,
-            "bw": 8e3
+            "text": "Military",
+            "freq_left": 29.7e6,
+            "freq_right": 32.5e6
         },
         {
-            "text": "CB 4",
-            "freq_center": 27.005e6,
-            "bw": 8e3
+            "text": "Research, satelite ident",
+            "freq_left": 30.005e6,
+            "freq_right": 30.01e6
         },
         {
-            "text": "CB 5",
-            "freq_center": 27.015e6,
-            "bw": 8e3
+            "text": "remote command",
+            "freq_left": 34.995e6,
+            "freq_right": 35.055e6
         },
         {
-            "text": "CB 6",
-            "freq_center": 27.025e6,
-            "bw": 8e3
+            "text": "Radio Astronomy",
+            "freq_left": 37.5e6,
+            "freq_right": 38.250e6
         },
         {
-            "text": "CB 7",
-            "freq_center": 27.035e6,
-            "bw": 8e3
+            "text": "Spatial research",
+            "freq_left": 39.986e6,
+            "freq_right": 40.020e6
         },
         {
-            "text": "CB 7b",
-            "freq_center": 27.045e6,
-            "bw": 8e3
+            "text": "remote command",
+            "freq_left": 40.995e6,
+            "freq_right": 40.205e6
         },
         {
-            "text": "CB 8",
-            "freq_center": 27.055e6,
-            "bw": 8e3
+            "text": "Mobile phone",
+            "freq_left": 41.3e6,
+            "freq_right": 41.5e6,
+            "comment": "15 Channels 12.5KHz"
         },
         {
-            "text": "CB 9",
-            "freq_center": 27.065e6,
-            "bw": 8e3
+            "text": "TV",
+            "freq_left": 44.5e6,
+            "freq_right": 68.5e6
         },
         {
-            "text": "CB 10",
-            "freq_center": 27.075e6,
-            "bw": 8e3
+            "text": "6 Meters",
+            "freq_left": 50e6,
+            "freq_right": 54e6
         },
         {
-            "text": "CB 11",
-            "freq_center": 27.085e6,
-            "bw": 8e3
+            "text": "4 Meters",
+            "freq_left": 70e6,
+            "freq_right": 70.5e6
         },
         {
-            "text": "CB 11b",
-            "freq_center": 27.095e6,
-            "bw": 8e3
+            "text": "Remote command",
+            "freq_left": 72.2e6,
+            "freq_right": 72.5e6
         },
         {
-            "text": "CB 12",
-            "freq_center": 27.105e6,
-            "bw": 8e3
+            "text": "Radioborne",
+            "freq_center": 75e6,
+            "bw": 10e3
         },
         {
-            "text": "CB 13",
-            "freq_center": 27.115e6,
-            "bw": 8e3
+            "text": "Radiomessagerie",
+            "freq_center": 87.39e6,
+            "bw": 10e3
         },
         {
-            "text": "CB 14",
-            "freq_center": 27.125e6,
-            "bw": 8e3
+            "text": "French public state",
+            "freq_left": 68e6,
+            "freq_right": 87.5e6
         },
+
         {
-            "text": "CB 15",
-            "freq_center": 27.135e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 15b",
-            "freq_center": 27.145e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 16",
-            "freq_center": 27.155e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 17",
-            "freq_center": 27.165e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 18",
-            "freq_center": 27.175e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 19",
-            "freq_center": 27.185e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 19b",
-            "freq_center": 27.195e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 20",
-            "freq_center": 27.205e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 21",
-            "freq_center": 27.215e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 22",
-            "freq_center": 27.225e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 23",
-            "freq_center": 27.255e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 24",
-            "freq_center": 27.235e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 25",
-            "freq_center": 27.245e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 26",
-            "freq_center": 27.265e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 27",
-            "freq_center": 27.275e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 28",
-            "freq_center": 27.285e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 29",
-            "freq_center": 27.295e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 30",
-            "freq_center": 27.305e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 31",
-            "freq_center": 27.315e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 32",
-            "freq_center": 27.325e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 33",
-            "freq_center": 27.335e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 34",
-            "freq_center": 27.345e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 35",
-            "freq_center": 27.355e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 36",
-            "freq_center": 27.365e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 37",
-            "freq_center": 27.375e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 38",
-            "freq_center": 27.385e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 39",
-            "freq_center": 27.395e6,
-            "bw": 8e3
-        },
-        {
-            "text": "CB 40",
-            "freq_center": 27.405e6,
-            "bw": 8e3
-        },
-        {
-            "text": "Radio FM",
+            "text": "French FM",
             "freq_left": 87.5e6,
             "freq_right": 108e6
         },
+        {
+            "text": "Aeronautic ground",
+            "freq_left": 108e6,
+            "freq_right": 112e6
+        },
+        {
+            "text": "Aeronautic control + ILS",
+            "freq_left": 108e6,
+            "freq_right": 136.975e6
+        },
+        {
+            "text": "International SOS",
+            "freq_center": 121.5e6,
+            "bw": 10e3
+        },
+        {
+            "text": "Aux International SOS",
+            "freq_center": 123.1e6,
+            "bw": 10e3
+        },
+        {
+            "text": "Weathermap Satelite Down",
+            "freq_left": 137e6,
+            "freq_right": 138e6
+        },
+        {
+            "text": "ULM",
+            "freq_left": 138e6,
+            "freq_right": 144e6
+        },
+        {
+            "text": "2 meters",
+            "freq_left": 144e6,
+            "freq_right": 148e6
+        },
+        {
+            "text": "Satelite Up",
+            "freq_left": 148e6,
+            "freq_right": 150.5e6
+        },
+
         {
             "text": "Radio AVIVA",
             "freq_center": 88e6,
@@ -405,5 +361,5 @@
             "freq_center": 107.3e6,
             "bw": 160e3
         }
-    ]
+   ]
 }

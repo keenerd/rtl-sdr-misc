@@ -10,7 +10,7 @@ The script can use the parameter JSON file for customise the generating heatmap.
 You can see the sample result
 
 First sample
-![FM](https://raw.githubusercontent.com/badele/rtl-sdr-misc/newfeature/heatmap/fm.png)
+![0Mhz - 100 Mhz band](https://raw.githubusercontent.com/badele/rtl-sdr-misc/newfeature/heatmap/0-100.png)
 
 Second sample
 ![FM 1](https://raw.githubusercontent.com/badele/rtl-sdr-misc/newfeature/heatmap/fm1.png)
@@ -19,5 +19,5 @@ Second sample
 Contributors
 ------------
 keenerd
-
+skgsergio
 badele
