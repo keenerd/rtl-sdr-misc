@@ -27,7 +27,8 @@ class HeatmapGenerator(object):
     tape_height = 25
     legends_height = 0
     legend_line_height = 8
-    max_row_legends = 2
+    legend_line_space = 5
+    max_nb_lines_legend = 5
     legends_row = []
     waterwall_width, waterwall_height = 0, 0
     waterwall_height = 0
@@ -222,9 +223,9 @@ class HeatmapGenerator(object):
         for legend in self.heatmap_parameters['legends']:
             #if legend['freq_left'] > last_freq_find_legende:
             if 'freq_left' in legend:
-                freq_left = legend['freq_left']
-                freq_right = legend['freq_right']
-                bw = legend['freq_right'] - legend['freq_left']
+                freq_left = max(legend['freq_left'], self.freq_left - self.step)
+                freq_right = min(legend['freq_right'], self.freq_right + self.step)
+                bw = freq_right - legend['freq_left']
                 legend['freq_center'] = freq_left + (bw / 2)
             else:
                 freq_left = legend['freq_center'] - (legend['bw'] / 2)
@@ -233,25 +234,25 @@ class HeatmapGenerator(object):
                 legend['freq_left'] = freq_left
                 legend['freq_right'] = freq_right
 
-            if freq_left >= self.freq_left and freq_left <= self.freq_right:
-                if freq_right >= self.freq_left and freq_right <= self.freq_right:
-                    legend['freq_left'] = freq_left
-                    legend['bw'] = bw
-                    legends_can_draw.append(legend)
-                    #last_freq_find_legende = legend['freq_right']
+            if freq_left >= self.freq_left and freq_left <= self.freq_right or \
+                freq_right >= self.freq_left and freq_right <= self.freq_right:
+                legend['freq_left'] = freq_left
+                legend['bw'] = bw
+                legends_can_draw.append(legend)
+                #last_freq_find_legende = legend['freq_right']
 
         # Order legends by bandwith
-        legends_can_draw = sorted(legends_can_draw, key=lambda x: x['freq_left'] - x['bw'])
+        legends_can_draw = sorted(legends_can_draw, key=lambda x: (x['freq_left'], -x['bw']))
 
         legends_pos = []
         for legend in legends_can_draw:
             can_add = -1
             for idx in range(len(legends_pos)):
-                if legend['freq_right'] >= legends_pos[idx]:
+                if legend['freq_left'] >= legends_pos[idx]:
                     can_add = idx
                     break
 
-            if len(legends_pos) <= self.max_row_legends:
+            if len(legends_pos) <= self.max_nb_lines_legend:
                 if can_add > -1:
                     self.legends_row[can_add].append(legend)
                     legends_pos[can_add] = legend['freq_right']
@@ -261,17 +262,19 @@ class HeatmapGenerator(object):
                     legends_pos.append(legend['freq_right'])
 
         self.legends_row.reverse()
-        self.legends_height = len(self.legends_row) * (self.fontsize + self.legend_line_height)
+        self.legends_height = len(self.legends_row) * (self.fontsize + self.legend_line_height + self.legend_line_space)
 
 
     def draw_legends(self):
         # TODO Refactoring the code for use offset,low,hight parameter
+        print "Draw legends"
         freqpixel = self.img_width / (self.freq_right - self.freq_left)
         draw = ImageDraw.Draw(self.img)
 
         nb_lines = len(self.legends_row)
         last_line_xpos = [0] * nb_lines
         for line in range(nb_lines):
+            coloridx = 0
             for legend in self.legends_row[line]:
 
                 # Calc pixel position
@@ -282,21 +285,32 @@ class HeatmapGenerator(object):
                 # Calc center text
                 textsizex, textsizey = self.font.getsize(legend['text'])
                 textpos = freq_centerpos - (textsizex / 2)
-                ypos = self.img_height - self.legends_height + (line * (self.fontsize + self.legend_line_height))
-                if freq_leftpos > last_line_xpos[line]:
+                ypos = self.img_height - self.legends_height + (line * (self.fontsize + self.legend_line_height + self.legend_line_space))
+                if textpos >= last_line_xpos[line]:
                     # Draw text
-                    draw.text((textpos, ypos + self.legend_line_height), legend['text'], font=self.font, fill='white')
-                    last_line_xpos[line] = freq_leftpos + textsizex
+                    # textcolor = 'white'
+                    # if coloridx % 2 == 1:
+                    #     textcolor = 'gray'
 
-                    #Draw line
-                    color = 'white'
-                    if (freq_leftpos == freq_rightpos):
-                        color = 'yellow'
-                    draw.line(
-                        [freq_leftpos, ypos + self.legend_line_height, freq_rightpos, ypos + self.legend_line_height],
-                        fill=color)
-                    draw.line([freq_leftpos, ypos + self.legend_line_height, freq_leftpos, ypos], fill=color)
-                    draw.line([freq_rightpos, ypos + self.legend_line_height, freq_rightpos, ypos], fill=color)
+                    draw.text((textpos, ypos + self.legend_line_height), legend['text'], font=self.font, fill='white')
+                    last_line_xpos[line] = textpos + textsizex
+                    coloridx += 1
+
+                    # Check if bandwith in the same point
+                    if int(freq_rightpos-freq_leftpos) > 2:
+                        #Draw line
+                        # color = 'white'
+                        # if (freq_leftpos == freq_rightpos):
+                        #     color = 'yellow'
+                        draw.line(
+                            [freq_leftpos + 1, ypos + self.legend_line_height, freq_rightpos - 1, ypos + self.legend_line_height],
+                            fill='white')
+
+                        draw.line([freq_leftpos + 1, ypos + self.legend_line_height, freq_leftpos + 1, ypos], fill='white')
+                        draw.line([freq_rightpos -1 , ypos + self.legend_line_height, freq_rightpos - 1 , ypos], fill='white')
+                    else:
+                        r = 1
+                        draw.ellipse((freq_centerpos - r, ypos + (self.legend_line_height / 2) - r,freq_centerpos + r, ypos + (self.legend_line_height / 2)+ r), fill='gray')
 
 
     # Draw text from python list
