@@ -246,35 +246,31 @@ class HeatmapGenerator(object):
         legends_can_draw = sorted(legends_can_draw, key=lambda x: x['bw'], reverse=True)
 
         for legend in legends_can_draw:
-            create_line = True
             append_line = False
             for lineidx in range(len(self.legends_row)):
                 nbcolumns = len(self.legends_row[lineidx])
-                for columnidx in range(nbcolumns):
-                    # Check if can i append the freq
-                    if legend['freq_left'] >= self.legends_row[lineidx][columnidx]['freq_right']:
-                        if columnidx == nbcolumns - 1:
-                            create_line = False
+                # Check if can i append the freq
+                if nbcolumns > 0:
+                    if legend['freq_left'] >= self.legends_row[lineidx][nbcolumns - 1]['freq_right'] or \
+                        legend['freq_right'] <= self.legends_row[lineidx][0]['freq_left']:
                             append_line = True
-                        break
+                            break
 
-                # If cannot, i check if can add at the beginning
-                if create_line:
-                    if nbcolumns > 0:
-                        if legend['freq_left'] + legend['freq_left'] <= self.legends_row[lineidx][columnidx]['freq_right']:
-                            create_line = False
-                            append_line = True
+                if nbcolumns > 1:
+                    for column in range(1, nbcolumns):
+                        if legend['freq_left'] >= self.legends_row[lineidx][column - 1]['freq_right'] and \
+                            legend['freq_right'] <= self.legends_row[lineidx][column]['freq_left']:
+                                append_line = True
+                                break
 
-
-            if create_line:
+            if append_line:
+                self.legends_row[lineidx].append(legend)
+                self.legends_row[lineidx] = sorted(self.legends_row[lineidx], key=lambda x: x['freq_left'])
+            else:
                 if len(self.legends_row) + 1 <= self.max_nb_lines_legend:
                     self.legends_row.append([])
                     self.legends_row[len(self.legends_row) - 1].append(legend)
 
-            if append_line:
-                self.legends_row[lineidx].append(legend)
-                self.legends_row[len(self.legends_row) - 1].append(legend)
-                self.legends_row[lineidx] = sorted(self.legends_row[lineidx], key=lambda x: x['freq_left'])
 
         self.legends_row.reverse()
         self.legends_height = len(self.legends_row) * (self.fontsize + self.legend_line_height + self.legend_line_space)
