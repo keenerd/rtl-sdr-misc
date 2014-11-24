@@ -28,7 +28,7 @@ class HeatmapGenerator(object):
     tape_height = 25
     legends_height = 0
     legend_line_height = 8
-    legend_line_space = 5
+    legend_line_space = 10
     max_nb_lines_legend = 5
     legends_row = []
     waterwall_width, waterwall_height = 0, 0
@@ -307,12 +307,12 @@ class HeatmapGenerator(object):
                     # if coloridx % 2 == 1:
                     #     textcolor = 'gray'
 
-                    draw.text((textpos, ypos + self.legend_line_height), legend['text'], font=self.font, fill='white')
+                    draw.text((textpos, ypos + self.legend_line_height + 6), legend['text'], font=self.font, fill='white')
                     last_line_xpos[line] = textpos + textsizex
                     coloridx += 1
 
                     # Check if bandwith in the same point
-                    if int(freq_rightpos-freq_leftpos) > 2:
+                    if int(freq_rightpos-freq_leftpos) > 5:
                         #Draw line
                         # color = 'white'
                         # if (freq_leftpos == freq_rightpos):
@@ -323,10 +323,10 @@ class HeatmapGenerator(object):
 
                         draw.line([freq_leftpos + 1, ypos + self.legend_line_height, freq_leftpos + 1, ypos], fill='white')
                         draw.line([freq_rightpos -1 , ypos + self.legend_line_height, freq_rightpos - 1 , ypos], fill='white')
+                        draw.line([freq_centerpos , ypos + self.legend_line_height, freq_centerpos , ypos + self.legend_line_height + 5], fill='white')
                     else:
                         r = 1
                         draw.ellipse((freq_centerpos - r, ypos + (self.legend_line_height / 2) - r,freq_centerpos + r, ypos + (self.legend_line_height / 2)+ r), fill='gray')
-
 
     # Draw text from python list
     def draw_textfromlist(self):
