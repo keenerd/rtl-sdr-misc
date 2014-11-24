@@ -33,37 +33,37 @@
         {
             "text": "MF",
             "freq_left": 300e3,
-            "freq_right": 3e7
+            "freq_right": 3e6
         },
         {
             "text": "HF",
-            "freq_left": 3e7,
-            "freq_right": 30e7
+            "freq_left": 3e6,
+            "freq_right": 30e6
         },
         {
             "text": "VHF",
-            "freq_left": 30e7,
-            "freq_right": 300e7
+            "freq_left": 30e6,
+            "freq_right": 300e6
         },
         {
             "text": "UHF",
-            "freq_left": 300e7,
-            "freq_right": 3e10
+            "freq_left": 300e6,
+            "freq_right": 3e9
         },
         {
             "text": "SHF",
-            "freq_left": 3e10,
-            "freq_right": 30e10
+            "freq_left": 3e9,
+            "freq_right": 30e9
         },
         {
             "text": "EHF",
-            "freq_left": 30e10,
-            "freq_right": 300e10
+            "freq_left": 30e9,
+            "freq_right": 300e9
         },
         {
             "text": "THF",
-            "freq_left": 300e10,
-            "freq_right": 3e13
+            "freq_left": 300e9,
+            "freq_right": 3e12
         },
         {
             "text": "12 Meters",
@@ -211,7 +211,7 @@
         },
 
         {
-            "text": "French FM",
+            "text": "FM band",
             "freq_left": 87.5e6,
             "freq_right": 108e6
         },
@@ -221,9 +221,10 @@
             "freq_right": 112e6
         },
         {
-            "text": "Aeronautic control + ILS",
+            "text": "Aeronautic",
             "freq_left": 108e6,
-            "freq_right": 136.975e6
+            "freq_right": 136.975e6,
+            "comment": "Aeronautic control VOR + ILS"
         },
         {
             "text": "International SOS",
