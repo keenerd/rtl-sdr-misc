@@ -84,7 +84,7 @@ if __name__ == '__main__':
     try:
         _, bin_count, averages, sample, path = sys.argv
         bin_count = int(bin_count)
-        bin_count = 2**(math.ceil(math.log2(bin_count)))
+        bin_count = int(2**(math.ceil(math.log(bin_count, 2))))
         averages = int(averages)
     except:
         help()
