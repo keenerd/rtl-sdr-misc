@@ -32,7 +32,7 @@ parser.add_argument('output_path', metavar='OUTPUT', type=str,
 parser.add_argument('--offset', dest='offset_freq', default=None,
     help='Shift the entire frequency range, for up/down converters.')
 parser.add_argument('--ytick', dest='time_tick', default=None,
-    help='Place ticks along the Y axis every N seconds.')
+    help='Place ticks along the Y axis every N seconds/minutes/hours/days.')
 parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
     help='Minimum and maximum db values.')
 parser.add_argument('--compress', dest='compress', default=0,
@@ -495,15 +495,26 @@ for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
         break
 
 if args.time_tick:
-    label_last = start
+    label_format = "%H:%M:%S"
+    if args.time_tick % (60*60*24) == 0:
+        label_format = "%Y-%m-%d"
+    elif args.time_tick % 60 == 0:
+        label_format = "%H:%M"
+    label_next = datetime.datetime(start.year, start.month, start.day, start.hour)
+    tick_delta = datetime.timedelta(seconds = args.time_tick)
+    while label_next < start:
+        label_next += tick_delta
+    last_y = -100
     for y,t in enumerate(times):
         label_time = date_parse(t)
-        label_diff = label_time - label_last
-        if label_diff.seconds >= args.time_tick:
-            if args.compress:
-                y = height2 - compression(height - y, args.compress)
-            shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], font)
-            label_last = label_time
+        if label_time < label_next:
+            continue
+        if args.compress:
+            y = height2 - compression(height - y, args.compress)
+        if y - last_y > 15:
+            shadow_text(2, y+tape_height, label_next.strftime(label_format), font)
+            last_y = y
+        label_next += tick_delta
 
 
 duration = stop - start
