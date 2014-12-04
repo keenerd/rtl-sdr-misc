@@ -34,7 +34,9 @@ parser.add_argument('--offset', dest='offset_freq', default=None,
 parser.add_argument('--ytick', dest='time_tick', default=None,
     help='Place ticks along the Y axis every N seconds.')
 parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
-    help='Maximum and minimum db values.')
+    help='Minimum and maximum db values.')
+parser.add_argument('--compress', dest='compress', default=0,
+    help='Apply a gradual asymptotic time compression.  Values > 1 are the new target height, values < 1 are a scaling factor.')
 slicegroup = parser.add_argument_group('Slicing',
     'Efficiently render a portion of the data. (optional)  Frequencies can take G/M/k suffixes.  Timestamps look like "YYYY-MM-DD HH:MM:SS"  Durations take d/h/m/s suffixes.')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
@@ -143,7 +145,10 @@ def gzip_wrap(path):
     running = True
     while running:
         try:
-            yield next(iterator)
+            line = next(iterator)
+            if type(line) == bytes:
+                line = line.decode('utf-8')
+            yield line
         except IOError:
             running = False
 
@@ -171,6 +176,7 @@ reparse('head_time', duration_parse)
 reparse('tail_time', duration_parse)
 reparse('head_time', lambda s: datetime.timedelta(seconds=s))
 reparse('tail_time', lambda s: datetime.timedelta(seconds=s))
+args.compress = float(args.compress)
 
 if args.begin_time and args.tail_time:
     print("Can't combine --begin and --tail")
@@ -261,7 +267,22 @@ if len(labels) == 1:
     lower = int(math.ceil(min(freqs) / delta) * delta)
     labels = list(range(lower, int(max(freqs)), delta))
 
-print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), len(times), min_z, max_z))
+def compression(y, decay):
+    return int(round((1/decay)*math.exp(y*decay) - 1/decay))
+
+height = len(times)
+height2 = height
+if args.compress:
+    if args.compress > height:
+        args.compress = 0
+        print("Image too short, disabling compression")
+    if 0 < args.compress < 1:
+        args.compress *= height
+    if args.compress:
+        args.compress = -1 / args.compress
+        height2 = compression(height, args.compress)
+
+print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), height2, min_z, max_z))
 
 def rgb2(z):
     g = (z - min_z) / (max_z - min_z)
@@ -272,33 +293,68 @@ def rgb3(z):
     c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
     return (int(c[0]*256),int(c[1]*256),int(c[2]*256))
 
+def collate_row(x_size):
+    # this is more fragile than the old code
+    # sensitive to timestamps that are out of order
+    old_t = None
+    row = [0.0] * x_size
+    for line in raw_data():
+        line = [s.strip() for s in line.strip().split(',')]
+        #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
+        line = [s for s in line if s]
+        t = line[0] + ' ' + line[1]
+        if t not in times:
+            continue  # happens with live files and time cropping
+        if old_t is None:
+            old_t = t
+        low = int(line[2]) + args.offset_freq
+        high = int(line[3]) + args.offset_freq
+        step = float(line[4])
+        columns = list(frange(low, high, step))
+        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        if args.high_freq and columns[start_col] > args.high_freq:
+            continue
+        x_start = freqs.index(columns[start_col])
+        zs = floatify(line[6+start_col:6+stop_col+1])
+        if t != old_t:
+            yield old_t, row
+            row = [0.0] * x_size
+        old_t = t
+        for i in range(len(zs)):
+            x = x_start + i
+            if x >= x_size:
+                continue
+            row[x] = zs[i]
+    yield old_t, row
+
 print("drawing")
 tape_height = 25
-img = Image.new("RGB", (len(freqs), tape_height + len(times)))
+img = Image.new("RGB", (len(freqs), tape_height + height2))
 pix = img.load()
 x_size = img.size[0]
-for line in raw_data():
-    line = [s.strip() for s in line.strip().split(',')]
-    #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
-    line = [s for s in line if s]
-    t = line[0] + ' ' + line[1]
-    if t not in times:
-        continue  # happens with live files and time cropping
+average = [0.0] * len(freqs)
+tally = 0
+old_y = None
+for t, zs in collate_row(x_size):
     y = times.index(t)
-    low = int(line[2]) + args.offset_freq
-    high = int(line[3]) + args.offset_freq
-    step = float(line[4])
-    columns = list(frange(low, high, step))
-    start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
-    if args.high_freq and columns[start_col] > args.high_freq:
+    if not args.compress:
+        for x in range(len(zs)):
+            pix[x,y+tape_height] = rgb2(zs[x])
         continue
-    x_start = freqs.index(columns[start_col])
-    zs = floatify(line[6+start_col:6+stop_col+1])
-    for i in range(len(zs)):
-        x = x_start + i
-        if x >= x_size:
-            continue
-        pix[x,y+tape_height] = rgb2(zs[i])
+    # ugh
+    y = height2 - compression(height - y, args.compress)
+    if old_y is None:
+        old_y = y
+    if old_y != y:
+        for x in range(len(average)):
+            pix[x,old_y+tape_height] = rgb2(average[x]/tally)
+        tally = 0
+        average = [0.0] * len(freqs)
+    old_y = y
+    for x in range(len(zs)):
+        average[x] += zs[x]
+    tally += 1
+
 
 def closest_index(n, m_list, interpolate=False):
     "assumes sorted m_list, returns two points for interpolate"
@@ -438,6 +494,8 @@ if args.time_tick:
         label_time = date_parse(t)
         label_diff = label_time - label_last
         if label_diff.seconds >= args.time_tick:
+            if args.compress:
+                y = height2 - compression(height - y, args.compress)
             shadow_text(2, y+tape_height, '%s' % t.split(' ')[-1], font)
             label_last = label_time
 
