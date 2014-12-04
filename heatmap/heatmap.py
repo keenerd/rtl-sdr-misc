@@ -137,6 +137,8 @@ def duration_parse(s):
     return float(s) * suffix
 
 def date_parse(s):
+    if '-' not in s:
+        return datetime.datetime.fromtimestamp(int(s))
     return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
 
 def gzip_wrap(path):
@@ -220,6 +222,8 @@ for line in raw_data():
     high = int(line[3]) + args.offset_freq
     step = float(line[4])
     t = line[0] + ' ' + line[1]
+    if '-' not in line[0]:
+        t = line[0]
 
     if args.low_freq  is not None and high < args.low_freq:
         continue
@@ -303,6 +307,8 @@ def collate_row(x_size):
         #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
         line = [s for s in line if s]
         t = line[0] + ' ' + line[1]
+        if '-' not in line[0]:
+            t = line[0]
         if t not in times:
             continue  # happens with live files and time cropping
         if old_t is None:
