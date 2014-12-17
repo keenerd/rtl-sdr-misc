@@ -238,6 +238,8 @@ for line in raw_data():
     start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
     f_key = (columns[start_col], columns[stop_col], step)
     zs = line[6+start_col:6+stop_col+1]
+    if not zs:
+        continue
     if f_key not in f_cache:
         freq2 = list(frange(*f_key))[:len(zs)]
         freqs.update(freq2)
@@ -318,9 +320,14 @@ def collate_row(x_size):
         step = float(line[4])
         columns = list(frange(low, high, step))
         start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        if args.low_freq and columns[stop_col] < args.low_freq:
+            continue
         if args.high_freq and columns[start_col] > args.high_freq:
             continue
-        x_start = freqs.index(columns[start_col])
+        start_freq = columns[start_col]
+        if args.low_freq:
+            start_freq = max(args.low_freq, start_freq)
+        x_start = freqs.index(start_freq)
         zs = floatify(line[6+start_col:6+stop_col+1])
         if t != old_t:
             yield old_t, row
