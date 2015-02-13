@@ -327,6 +327,7 @@ def collate_row(x_size):
         start_freq = columns[start_col]
         if args.low_freq:
             start_freq = max(args.low_freq, start_freq)
+        # sometimes fails?  skip or abort?
         x_start = freqs.index(start_freq)
         zs = floatify(line[6+start_col:6+stop_col+1])
         if t != old_t:
@@ -481,9 +482,9 @@ min_freq = min(freqs)
 max_freq = max(freqs)
 delta = max_freq - min_freq
 width = len(freqs)
-label_base = 8
+label_base = 9
 
-for i in range(8, 0, -1):
+for i in range(label_base, 0, -1):
     interval = int(10**i)
     low_f = (min_freq // interval) * interval
     high_f = (1 + max_freq // interval) * interval
