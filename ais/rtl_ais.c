@@ -35,8 +35,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
 #include <unistd.h>
+#ifdef WIN32
+	#include <fcntl.h>
+#endif
+
 
 #include <pthread.h>
 #include <libusb.h>
@@ -77,6 +80,10 @@ struct downsample_state
 	int16_t  lp_i_hist[10][6];
 	int16_t  lp_q_hist[10][6];
 	pthread_rwlock_t rw;
+	//droop compensation
+	int16_t  droop_i_hist[9];
+	int16_t  droop_q_hist[9];
+
 };
 
 struct demod_state
@@ -88,6 +95,7 @@ struct demod_state
 	int      now_r, now_j;
 	int      pre_r, pre_j;
 	int      dc_avg;  // really should get its own struct
+
 };
 
 struct upsample_stereo
@@ -122,7 +130,7 @@ void usage(void)
 		"\t[-r right_frequency (default: 162.025M)]\n"
 		"\t    left freq < right freq\n"
 		"\t    frequencies must be within 1.2MHz\n"
-		"\t[-s sample_rate (default: 12k)]\n"
+		"\t[-s sample_rate (default: 24k)]\n"
 		"\t    minimum value, might be up to 2x specified\n"
 		"\t[-o output_rate (default: 48k)]\n"
 		"\t    must be equal or greater than twice -s value\n"
@@ -146,6 +154,20 @@ static void sighandler(int signum)
 	do_exit = 1;
 	rtlsdr_cancel_async(dev);
 }
+int cic_9_tables[][10] = {
+	{0,},
+	{9, -156,  -97, 2798, -15489, 61019, -15489, 2798,  -97, -156},
+	{9, -128, -568, 5593, -24125, 74126, -24125, 5593, -568, -128},
+	{9, -129, -639, 6187, -26281, 77511, -26281, 6187, -639, -129},
+	{9, -122, -612, 6082, -26353, 77818, -26353, 6082, -612, -122},
+	{9, -120, -602, 6015, -26269, 77757, -26269, 6015, -602, -120},
+	{9, -120, -582, 5951, -26128, 77542, -26128, 5951, -582, -120},
+	{9, -119, -580, 5931, -26094, 77505, -26094, 5931, -580, -119},
+	{9, -119, -578, 5921, -26077, 77484, -26077, 5921, -578, -119},
+	{9, -119, -577, 5917, -26067, 77473, -26067, 5917, -577, -119},
+	{9, -199, -362, 5303, -25505, 77489, -25505, 5303, -362, -199},
+};
+
 
 void rotate_90(int16_t *buf, int len)
 /* 90 rotation is 1+0j, 0+1j, -1+0j, 0-1j
@@ -218,14 +240,43 @@ void fifth_order(int16_t *data, int length, int16_t *hist)
 	hist[5] = f;
 }
 
+void generic_fir(int16_t *data, int length, int *fir, int16_t *hist)
+/* Okay, not at all generic.  Assumes length 9, fix that eventually. */
+{
+	int d, temp, sum;
+	for (d=0; d<length; d+=2) {
+		temp = data[d];
+		sum = 0;
+		sum += (hist[0] + hist[8]) * fir[1];
+		sum += (hist[1] + hist[7]) * fir[2];
+		sum += (hist[2] + hist[6]) * fir[3];
+		sum += (hist[3] + hist[5]) * fir[4];
+		sum +=            hist[4]  * fir[5];
+		data[d] = sum >> 15 ;
+		hist[0] = hist[1];
+		hist[1] = hist[2];
+		hist[2] = hist[3];
+		hist[3] = hist[4];
+		hist[4] = hist[5];
+		hist[5] = hist[6];
+		hist[6] = hist[7];
+		hist[7] = hist[8];
+		hist[8] = temp;
+	}
+}
+
 void downsample(struct downsample_state *d)
 {
 	int i, ds_p;
 	ds_p = d->downsample_passes;
-	for (i=0; i<ds_p; i++) {
+	for (i=0; i<ds_p; i++) 
+	{
 		fifth_order(d->buf,   (d->len_in >> i),   d->lp_i_hist[i]);
 		fifth_order(d->buf+1, (d->len_in >> i)-1, d->lp_q_hist[i]);
 	}
+	// droop compensation
+	generic_fir(d->buf, d->len_in >> ds_p,cic_9_tables[ds_p], d->droop_i_hist);
+	generic_fir(d->buf+1, (d->len_in>> ds_p)-1,cic_9_tables[ds_p], d->droop_q_hist);
 }
 
 void multiply(int ar, int aj, int br, int bj, int *cr, int *cj)
@@ -280,6 +331,7 @@ void demodulate(struct demod_state *d)
 	int16_t *result = d->result;
 	pcm = polar_disc_fast(buf[0], buf[1],
 		d->pre_r, d->pre_j);
+	
 	result[0] = (int16_t)pcm;
 	for (i = 2; i < (d->buf_len-1); i += 2) {
 		// add the other atan types?
@@ -370,6 +422,7 @@ static void *demod_thread_fn(void *arg)
 			dc_block_filter(&left_demod);}
 		//if (oversample) {
 		//	downsample(&left);}
+		//fprintf(stderr,"\nUpsample result_len:%d stereo.bl_len:%d :%f\n",left_demod.result_len,stereo.bl_len,(float)stereo.bl_len/(float)left_demod.result_len);
 		arbitrary_upsample(left_demod.result, stereo.buf_left, left_demod.result_len, stereo.bl_len);
 		rotate_m90(right.buf, right.len_in);
 		downsample(&right);
@@ -392,6 +445,7 @@ void downsample_init(struct downsample_state *dss)
 	int i, j;
 	dss->buf = malloc(dss->len_in * sizeof(int16_t));
 	dss->rate_out = dss->rate_in / dss->downsample;
+	
 	//dss->downsample_passes = (int)log2(dss->downsample);
 	dss->len_out = dss->len_in / dss->downsample;
 	for (i=0; i<10; i++) { for (j=0; j<6; j++) {
@@ -416,7 +470,9 @@ void stereo_init(struct upsample_stereo *us)
 
 int main(int argc, char **argv)
 {
+#ifndef WIN32
 	struct sigaction sigact;
+#endif	
 	char *filename = NULL;
 	int r, opt;
 	int i, gain = AUTO_GAIN; /* tenths of a dB */
@@ -426,7 +482,7 @@ int main(int argc, char **argv)
 	int custom_ppm = 0;
 	int left_freq = 161975000;
 	int right_freq = 162025000;
-	int sample_rate = 12000;
+	int sample_rate = 24000;
 	int output_rate = 48000;
 	int dongle_freq, dongle_rate, delta;
 	int edge = 0;
@@ -550,7 +606,8 @@ int main(int argc, char **argv)
 	left_demod.result_len = left_demod.buf_len / 2;
 	right_demod.buf_len = left_demod.buf_len;
 	right_demod.result_len = left_demod.result_len;
-	stereo.bl_len = (int)((long)(DEFAULT_BUF_LENGTH/2) * (long)output_rate / (long)dongle_rate);
+//	stereo.bl_len = (int)((long)(DEFAULT_BUF_LENGTH/2) * (long)output_rate / (long)dongle_rate); -> Doesn't work on Linux
+	stereo.bl_len = (int)((double)(DEFAULT_BUF_LENGTH/2) * (double)output_rate / (double)dongle_rate);
 	stereo.br_len = stereo.bl_len;
 	stereo.result_len = stereo.br_len * 2;
 	stereo.rate = output_rate;
@@ -575,6 +632,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
 		exit(1);
 	}
+#ifndef WIN32	
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
 	sigact.sa_flags = 0;
@@ -582,9 +640,15 @@ int main(int argc, char **argv)
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigact, NULL);
-
+#else
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+#endif
 	if (strcmp(filename, "-") == 0) { /* Write samples to stdout */
 		file = stdout;
+#ifdef WIN32		
+		setmode(fileno(stdout), O_BINARY); // Binary mode, avoid text mode
+#endif		
 		setvbuf(stdout, NULL, _IONBF, 0);
 	} else {
 		file = fopen(filename, "wb");
@@ -593,7 +657,6 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 	}
-
 	/* Set the tuner gain */
 	if (gain == AUTO_GAIN) {
 		verbose_auto_gain(dev);
@@ -605,7 +668,9 @@ int main(int argc, char **argv)
 	if (!custom_ppm) {
 		verbose_ppm_eeprom(dev, &ppm_error);
 	}
+	
 	verbose_ppm_set(dev, ppm_error);
+
 	//r = rtlsdr_set_agc_mode(dev, 1);
 
 	/* Set the tuner frequency */
