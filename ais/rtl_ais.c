@@ -743,7 +743,7 @@ int main(int argc, char **argv)
 		}
 	}
 	/* Set the tuner gain */
-if	if (gain == AUTO_GAIN) {
+	if (gain == AUTO_GAIN) {
 		verbose_auto_gain(dev);
 	} else {
 		gain = nearest_gain(dev, gain);
@@ -789,7 +789,6 @@ if	if (gain == AUTO_GAIN) {
 	pthread_mutex_destroy(&ready_m);
 
 	if (file != stdout) {
-	    if(file)
 		fclose(file);
 	}
 
