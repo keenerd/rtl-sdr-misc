@@ -61,7 +61,7 @@ static rtlsdr_dev_t *dev = NULL;
 /* todo, less globals */
 int16_t *merged;
 int merged_len;
-FILE *file;
+FILE *file=NULL;
 int oversample = 0;
 int dc_filter = 1;
 int use_internal_aisdecoder=1;
@@ -743,7 +743,7 @@ int main(int argc, char **argv)
 		}
 	}
 	/* Set the tuner gain */
-	if (gain == AUTO_GAIN) {
+if	if (gain == AUTO_GAIN) {
 		verbose_auto_gain(dev);
 	} else {
 		gain = nearest_gain(dev, gain);
@@ -789,7 +789,9 @@ int main(int argc, char **argv)
 	pthread_mutex_destroy(&ready_m);
 
 	if (file != stdout) {
-		fclose(file);}
+	    if(file)
+		fclose(file);
+	}
 
 	rtlsdr_close(dev);
 	return r >= 0 ? r : -r;
