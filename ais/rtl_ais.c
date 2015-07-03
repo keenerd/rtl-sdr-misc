@@ -46,6 +46,7 @@
 
 #include <rtl-sdr.h>
 #include "convenience.h"
+#include "aisdecoder/aisdecoder.h"
 
 #define DEFAULT_ASYNC_BUF_NUMBER	12
 #define DEFAULT_BUF_LENGTH		(16 * 16384)
@@ -63,7 +64,8 @@ int merged_len;
 FILE *file;
 int oversample = 0;
 int dc_filter = 1;
-
+int use_internal_aisdecoder=1;
+int seconds_for_decoder_stats=0;
 /* signals are not threadsafe by default */
 #define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
 #define safe_cond_wait(n, m) pthread_mutex_lock(m); pthread_cond_wait(n, m); pthread_mutex_unlock(m)
@@ -131,7 +133,7 @@ void usage(void)
 		"\t    left freq < right freq\n"
 		"\t    frequencies must be within 1.2MHz\n"
 		"\t[-s sample_rate (default: 24k)]\n"
-		"\t    minimum value, might be up to 2x specified\n"
+		"\t    maximum value, might be down to 12k\n"
 		"\t[-o output_rate (default: 48k)]\n"
 		"\t    must be equal or greater than twice -s value\n"
 		"\t[-E toggle edge tuning (default: off)]\n"
@@ -140,10 +142,25 @@ void usage(void)
 		"\t[-d device_index (default: 0)]\n"
 		"\t[-g tuner_gain (default: automatic)]\n"
 		"\t[-p ppm_error (default: 0)]\n"
-		"\tfilename (a '-' dumps samples to stdout)\n"
+		"\t[-R enable RTL chip AGC (default: off)]\n"
+		"\t[-A turn off built-in AIS decoder (default: on)]\n"
+		"\t    use this option to output samples to file or stdout.\n"
+		"\tBuilt-in AIS decoder options:\n"
+		"\t[-h host (default: localhost)]\n"
+		"\t[-P port (default: 10110)]\n"
+		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
+		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
+		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
+		"\tWhen the built-in AIS decoder is disabled the samples are sent to\n"
+		"\tto [outputfile] (a '-' dumps samples to stdout)\n"
 		"\t    omitting the filename also uses stdout\n\n"
 		"\tOutput is stereo 2x16 bit signed ints\n\n"
-		"rtl_ais | play -t raw -r 48k -es -b 16 -c 2 -V1 -\n"
+		"\tExmaples:\n"
+		"\tReceive AIS traffic,sent UDP NMEA sentences to localhost port 10110\n"
+		"\t     and log the senteces to console:\n\n"
+		"\trtl_ais -n\n\n"
+		"\tTune two fm stations and play one on each channel:\n\n"
+		"\trtl_ais -l233.15M  -r233.20M -A  | play -r48k -traw -es -b16 -c2 -V1 - "
 		"\n");
 	exit(1);
 }
@@ -395,13 +412,16 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 	safe_cond_signal(&ready, &ready_m);
 }
 
-void output(void)
+void pre_output(void)
 {
 	int i;
 	for (i=0; i<stereo.bl_len; i++) {
 		stereo.result[i*2]   = stereo.buf_left[i];
 		stereo.result[i*2+1] = stereo.buf_right[i];
 	}
+}
+void output(void)
+{
 	fwrite(stereo.result, 2, stereo.result_len, file);
 }
 
@@ -433,9 +453,18 @@ static void *demod_thread_fn(void *arg)
 		//if (oversample) {
 		//	downsample(&right);}
 		arbitrary_upsample(right_demod.result, stereo.buf_right, right_demod.result_len, stereo.br_len);
-		output();
+		pre_output();
+		if(use_internal_aisdecoder){
+			// stereo.result -> int_16
+			// stereo.result_len -> number of samples for each channel
+			run_rtlais_decoder(stereo.result,stereo.result_len);
+		}
+		else{
+			output();
+		}
 	}
 	rtlsdr_cancel_async(dev);
+	free_ais_decoder();
 	return 0;
 }
 
@@ -479,6 +508,7 @@ int main(int argc, char **argv)
 	int dev_index = 0;
 	int dev_given = 0;
 	int ppm_error = 0;
+	int rtl_agc=0;
 	int custom_ppm = 0;
 	int left_freq = 161975000;
 	int right_freq = 162025000;
@@ -486,10 +516,16 @@ int main(int argc, char **argv)
 	int output_rate = 48000;
 	int dongle_freq, dongle_rate, delta;
 	int edge = 0;
+/* Aisdecoder */
+	int	show_levels=0;
+	int debug_nmea = 0;
+	char * port=NULL;
+	char * host=NULL;
+
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:h")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -524,7 +560,28 @@ int main(int argc, char **argv)
 			ppm_error = atoi(optarg);
 			custom_ppm = 1;
 			break;
+		case 'R':
+			rtl_agc=1;
+			break;
+		case 'A':
+			use_internal_aisdecoder=0;
+			break;
+		case 'P':
+			port=strdup(optarg);
+			break;
 		case 'h':
+			host=strdup(optarg);
+			break;
+		case 'L':
+			show_levels=1;
+			break;
+		case 'S':
+			seconds_for_decoder_stats=atoi(optarg);
+			break;
+		case 'n':
+			debug_nmea = 1;
+			break;
+		case '?':
 		default:
 			usage();
 			return 2;
@@ -541,7 +598,13 @@ int main(int argc, char **argv)
 		usage();
 		return 2;
 	}
-
+	if(host==NULL){
+		host=strdup("localhost");
+	}
+	if(port==NULL){
+		port=strdup("10110");
+	}
+	
 	/* precompute rates */
 	dongle_freq = left_freq/2 + right_freq/2;
 	if (edge) {
@@ -589,6 +652,16 @@ int main(int argc, char **argv)
 		fprintf(stderr, "DC filter enabled.\n");
 	} else {
 		fprintf(stderr, "DC filter disabled.\n");
+	}
+	if (rtl_agc) {
+		fprintf(stderr, "RTL AGC enabled.\n");
+	} else {
+		fprintf(stderr, "RTL AGC disabled.\n");
+	}
+	if (use_internal_aisdecoder) {
+		fprintf(stderr, "Internal AIS decoder enabled.\n");
+	} else {
+		fprintf(stderr, "Internal AIS decoder disabled.\n");
 	}
 	fprintf(stderr, "Buffer size: %0.2f mS\n", 1000 * (double)DEFAULT_BUF_LENGTH / (double)dongle_rate);
 	fprintf(stderr, "Downsample factor: %i\n", both.downsample * left.downsample);
@@ -643,17 +716,29 @@ int main(int argc, char **argv)
 #else
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
-#endif
-	if (strcmp(filename, "-") == 0) { /* Write samples to stdout */
-		file = stdout;
-#ifdef WIN32		
-		setmode(fileno(stdout), O_BINARY); // Binary mode, avoid text mode
-#endif		
-		setvbuf(stdout, NULL, _IONBF, 0);
-	} else {
-		file = fopen(filename, "wb");
-		if (!file) {
-			fprintf(stderr, "Failed to open %s\n", filename);
+
+	#endif
+	if(!use_internal_aisdecoder){
+		if (strcmp(filename, "-") == 0) { /* Write samples to stdout */
+			file = stdout;
+	#ifdef WIN32		
+			setmode(fileno(stdout), O_BINARY); // Binary mode, avoid text mode
+	#endif		
+			setvbuf(stdout, NULL, _IONBF, 0);
+		} else {
+			file = fopen(filename, "wb");
+			if (!file) {
+				fprintf(stderr, "Failed to open %s\n", filename);
+				exit(1);
+			}
+		}
+	}
+	else{ // Internal AIS decoder
+		int ret=init_ais_decoder(host,port,show_levels,debug_nmea,stereo.bl_len,seconds_for_decoder_stats);
+		if(ret != 0){
+			fprintf(stderr,"Error initializing built-in AIS decoder\n");
+			rtlsdr_cancel_async(dev);
+			rtlsdr_close(dev);
 			exit(1);
 		}
 	}
@@ -664,15 +749,22 @@ int main(int argc, char **argv)
 		gain = nearest_gain(dev, gain);
 		verbose_gain_set(dev, gain);
 	}
-
+	if(rtl_agc){
+		int r = rtlsdr_set_agc_mode(dev, 1);
+		if(r<0)	{
+			fprintf(stderr,"Error seting RTL AGC mode ON");
+			exit(1);
+		}
+		else {
+			fprintf(stderr,"RTL AGC mode ON\n");
+		}
+	}
 	if (!custom_ppm) {
 		verbose_ppm_eeprom(dev, &ppm_error);
 	}
 	
 	verbose_ppm_set(dev, ppm_error);
-
-	//r = rtlsdr_set_agc_mode(dev, 1);
-
+	
 	/* Set the tuner frequency */
 	verbose_set_frequency(dev, dongle_freq);
 
