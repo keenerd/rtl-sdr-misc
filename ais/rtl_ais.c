@@ -146,7 +146,7 @@ void usage(void)
 		"\t[-A turn off built-in AIS decoder (default: on)]\n"
 		"\t    use this option to output samples to file or stdout.\n"
 		"\tBuilt-in AIS decoder options:\n"
-		"\t[-h host (default: localhost)]\n"
+		"\t[-h host (default: 127.0.0.1)]\n"
 		"\t[-P port (default: 10110)]\n"
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
@@ -156,7 +156,7 @@ void usage(void)
 		"\t    omitting the filename also uses stdout\n\n"
 		"\tOutput is stereo 2x16 bit signed ints\n\n"
 		"\tExmaples:\n"
-		"\tReceive AIS traffic,sent UDP NMEA sentences to localhost port 10110\n"
+		"\tReceive AIS traffic,sent UDP NMEA sentences to 127.0.0.1 port 10110\n"
 		"\t     and log the senteces to console:\n\n"
 		"\trtl_ais -n\n\n"
 		"\tTune two fm stations and play one on each channel:\n\n"
@@ -599,7 +599,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	if(host==NULL){
-		host=strdup("localhost");
+		host=strdup("127.0.0.1");
 	}
 	if(port==NULL){
 		port=strdup("10110");
