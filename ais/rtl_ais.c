@@ -789,7 +789,8 @@ int main(int argc, char **argv)
 	pthread_mutex_destroy(&ready_m);
 
 	if (file != stdout) {
-		fclose(file);
+		if(file)
+			fclose(file);
 	}
 
 	rtlsdr_close(dev);
