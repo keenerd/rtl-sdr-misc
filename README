@@ -33,7 +33,7 @@ Use: rtl_ais [options] [outputfile]
         to [outputfile] (a '-' dumps samples to stdout)
             omitting the filename also uses stdout
         Output is stereo 2x16 bit signed ints
-        Exmaples:
+        Examples:
         Receive AIS traffic,sent UDP NMEA sentences to 127.0.0.1 port 10110
              and log the senteces to console:
         rtl_ais -n
