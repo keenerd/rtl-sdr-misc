@@ -58,8 +58,8 @@ then type
 Test running
     ./rtl_ais
 
-For compiling a MS Windows executable you will have a working MSYS/MinGW environment.
-Edit the Makefile, and modify the lines:
+For compiling a MS Windows executable you will need a working MSYS/MinGW environment.
+Edit the Makefile, and modify these lines:
 
 #### point this to your correct path ###
 RTLSDR_PATH="/c/tmp/rtl-sdr/"
