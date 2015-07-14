@@ -154,7 +154,7 @@ void usage(void)
 		"\tto [outputfile] (a '-' dumps samples to stdout)\n"
 		"\t    omitting the filename also uses stdout\n\n"
 		"\tOutput is stereo 2x16 bit signed ints\n\n"
-		"\tExmaples:\n"
+		"\tExamples:\n"
 		"\tReceive AIS traffic,sent UDP NMEA sentences to 127.0.0.1 port 10110\n"
 		"\t     and log the senteces to console:\n\n"
 		"\trtl_ais -n\n\n"
