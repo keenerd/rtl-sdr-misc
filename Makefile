@@ -4,20 +4,36 @@ LDFLAGS+=-lpthread -lm
 
 UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
-
 #Conditional for Linux
 CFLAGS+= $(shell pkg-config --cflags librtlsdr)
 LDFLAGS+=$(shell pkg-config --libs librtlsdr)
 
 else
+#
+#ADD THE CORRECT PATH FOR LIBUSB AND RTLSDR
+#TODO:
+#    CMAKE will be much better or create a conditional pkg-config
 
+
+# RTLSDR
+RTLSDR_INCLUDE=/tmp/rtl-sdr/include
+RTLSDR_LIB=/tmp/rtl-sdr/build/src
+
+# LIBUSB
+LIBUSB_INCLUDE=/tmp/libusb/include/libusb-1.0
+LIBUSB_LIB=/tmp/libusb/lib
+
+
+ifeq ($(UNAME),Darwin)
+#Conditional for OSX
+CFLAGS+= -I/usr/local/include/ -I$(LIBUSB_INCLUDE) -I$(RTLSDR_INCLUDE)
+LDFLAGS+= -L/usr/local/lib -L$(LIBUSB_LIB) -L$(RTLSDR_LIB) -lrtlsdr -lusb-1.0 
+else
 #Conditional for Windows
-#### point this to your correct path ###
-RTLSDR_PATH="/c/tmp/rtl-sdr/"
-RTLSDR_LIB=$(RTLSDR_PATH)/build/src/
-########################################
-CFLAGS+=-I $(RTLSDR_PATH)/include
-LDFLAGS+=-L $(RTLSDR_LIB) -L/usr/lib -lusb-1.0 -lrtlsdr -lWs2_32
+CFLAGS+=-I $(LIBUSB_INCLUDE) -I $(RTLSDR_INCLUDE)
+LDFLAGS+=-L$(LIBUSB_INCLUDE) -L$(RTLSDR_LIB) -L/usr/lib -lusb-1.0 -lrtlsdr -lWs2_32
+endif
+
 
 endif
 
