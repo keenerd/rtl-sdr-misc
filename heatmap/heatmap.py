@@ -290,14 +290,46 @@ if args.compress:
 
 print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), height2, min_z, max_z))
 
-def rgb2(z):
-    g = (z - min_z) / (max_z - min_z)
-    return (int(g*255), int(g*255), 50)
+def default_palette():
+    return [(i, i, 50) for i in range(256)]
 
-def rgb3(z):
-    g = (z - min_z) / (max_z - min_z)
-    c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
-    return (int(c[0]*256),int(c[1]*256),int(c[2]*256))
+def extended_palette():
+    p = [(0,0,50)]
+    for i in range(1, 256):
+        p.append((i, i-1, 50))
+        p.append((i-1, i, 50))
+        p.append((i, i, 50))
+    return p
+
+def charolstra_palette():
+    p = []
+    for i in range(256):
+        g = i / 255.0
+        c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
+        p.append((int(c[0]*256), int(c[1]*256), int(c[2]*256)))
+    return p
+
+def twente_palette():
+    p = []
+    for i in range(20, 100, 2):
+        p.append((0, 0, i))
+    for i in range(256):
+        g = i / 255.0
+        p.append((int(g*255), 0, int(g*155)+100))
+    for i in range(256):
+        p.append((255, i, 255))
+    # intentionally blow out the highs
+    for i in range(100):
+        p.append((255, 255, 255))
+    return p
+
+def rgb_fn(palette):
+    "palette is a list of tuples, returns a function of z"
+    def rgb_inner(z):
+        tone = (z - min_z) / (max_z - min_z)
+        tone_scaled = int(tone * (len(palette)-1))
+        return palette[tone_scaled]
+    return rgb_inner
 
 def collate_row(x_size):
     # this is more fragile than the old code
@@ -342,6 +374,7 @@ def collate_row(x_size):
     yield old_t, row
 
 print("drawing")
+rgb = rgb_fn(default_palette())
 tape_height = 25
 img = Image.new("RGB", (len(freqs), tape_height + height2))
 pix = img.load()
@@ -353,7 +386,7 @@ for t, zs in collate_row(x_size):
     y = times.index(t)
     if not args.compress:
         for x in range(len(zs)):
-            pix[x,y+tape_height] = rgb2(zs[x])
+            pix[x,y+tape_height] = rgb(zs[x])
         continue
     # ugh
     y = height2 - compression(height - y, args.compress)
@@ -361,7 +394,7 @@ for t, zs in collate_row(x_size):
         old_y = y
     if old_y != y:
         for x in range(len(average)):
-            pix[x,old_y+tape_height] = rgb2(average[x]/tally)
+            pix[x,old_y+tape_height] = rgb(average[x]/tally)
         tally = 0
         average = [0.0] * len(freqs)
     old_y = y
