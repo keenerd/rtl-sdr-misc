@@ -51,6 +51,8 @@ slicegroup.add_argument('--head', dest='head_time', default=None,
     help='Duration to use, starting at the beginning.')
 slicegroup.add_argument('--tail', dest='tail_time', default=None,
     help='Duration to use, stopping at the end.')
+slicegroup.add_argument('--palette', dest='input_palette', default='default',
+    help='Set Color Palette')
 
 # hack, http://stackoverflow.com/questions/9025204/
 for i, arg in enumerate(sys.argv):
@@ -141,6 +143,9 @@ def date_parse(s):
         return datetime.datetime.fromtimestamp(int(s))
     return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
 
+def palette_parse(palette_input):
+    return palette_input + "_palette"
+
 def gzip_wrap(path):
     "hides silly CRC errors"
     iterator = gzip.open(path, 'rb')
@@ -189,6 +194,8 @@ if args.end_time and args.head_time:
 if args.head_time and args.tail_time:
     print("Can't combine --head and --tail")
     sys.exit(2)
+
+selected_palette = palette_parse(args.input_palette)
 
 print("loading")
 
@@ -323,6 +330,16 @@ def twente_palette():
         p.append((255, 255, 255))
     return p
 
+def multipass_palette():
+    p = []  
+    for i in range(0, 75):  
+        p.append((0, 0, 0))
+    for i in range(76, 200):
+        p.append((50, i, 50))
+    for i in range(201, 256):
+        p.append((255, 0, 50))
+    return p
+
 def rgb_fn(palette):
     "palette is a list of tuples, returns a function of z"
     def rgb_inner(z):
@@ -374,7 +391,7 @@ def collate_row(x_size):
     yield old_t, row
 
 print("drawing")
-rgb = rgb_fn(default_palette())
+rgb = rgb_fn(vars()[selected_palette]())
 tape_height = 25
 img = Image.new("RGB", (len(freqs), tape_height + height2))
 pix = img.load()
@@ -574,9 +591,3 @@ shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
 
 print("saving")
 img.save(output)
-
-
-
-
-
-
