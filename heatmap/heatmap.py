@@ -37,6 +37,9 @@ parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
     help='Minimum and maximum db values.')
 parser.add_argument('--compress', dest='compress', default=0,
     help='Apply a gradual asymptotic time compression.  Values > 1 are the new target height, values < 1 are a scaling factor.')
+parser.add_argument('--palette', dest='palette', default='default',
+    help='Set Color Palette: default, extended, charolstra, twente, multipass')
+
 slicegroup = parser.add_argument_group('Slicing',
     'Efficiently render a portion of the data. (optional)  Frequencies can take G/M/k suffixes.  Timestamps look like "YYYY-MM-DD HH:MM:SS"  Durations take d/h/m/s suffixes.')
 slicegroup.add_argument('--low', dest='low_freq', default=None,
@@ -141,6 +144,103 @@ def date_parse(s):
         return datetime.datetime.fromtimestamp(int(s))
     return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
 
+def default_palette():
+    return [(i, i, 50) for i in range(256)]
+
+def extended_palette():
+    p = [(0,0,50)]
+    for i in range(1, 256):
+        p.append((i, i-1, 50))
+        p.append((i-1, i, 50))
+        p.append((i, i, 50))
+    return p
+
+def charolstra_palette():
+    p = []
+    for i in range(256):
+        g = i / 255.0
+        c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
+        p.append((int(c[0]*256), int(c[1]*256), int(c[2]*256)))
+    return p
+
+def twente_palette():
+    p = []
+    for i in range(20, 100, 2):
+        p.append((0, 0, i))
+    for i in range(256):
+        g = i / 255.0
+        p.append((int(g*255), 0, int(g*155)+100))
+    for i in range(256):
+        p.append((255, i, 255))
+    # intentionally blow out the highs
+    for i in range(100):
+        p.append((255, 255, 255))
+    return p
+
+def multipass_palette():
+    p = []  
+    for i in range(0, 75):  
+        p.append((0, 0, 0))
+    for i in range(76, 200):
+        p.append((50, i, 50))
+    for i in range(201, 256):
+        p.append((255, 0, 50))
+    return p
+
+def rgb_fn(palette):
+    "palette is a list of tuples, returns a function of z"
+    def rgb_inner(z):
+        tone = (z - min_z) / (max_z - min_z)
+        tone_scaled = int(tone * (len(palette)-1))
+        return palette[tone_scaled]
+    return rgb_inner
+
+def collate_row(x_size):
+    # this is more fragile than the old code
+    # sensitive to timestamps that are out of order
+    old_t = None
+    row = [0.0] * x_size
+    for line in raw_data():
+        line = [s.strip() for s in line.strip().split(',')]
+        #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
+        line = [s for s in line if s]
+        t = line[0] + ' ' + line[1]
+        if '-' not in line[0]:
+            t = line[0]
+        if t not in times:
+            continue  # happens with live files and time cropping
+        if old_t is None:
+            old_t = t
+        low = int(line[2]) + args.offset_freq
+        high = int(line[3]) + args.offset_freq
+        step = float(line[4])
+        columns = list(frange(low, high, step))
+        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        if args.low_freq and columns[stop_col] < args.low_freq:
+            continue
+        if args.high_freq and columns[start_col] > args.high_freq:
+            continue
+        start_freq = columns[start_col]
+        if args.low_freq:
+            start_freq = max(args.low_freq, start_freq)
+        # sometimes fails?  skip or abort?
+        x_start = freqs.index(start_freq)
+        zs = floatify(line[6+start_col:6+stop_col+1])
+        if t != old_t:
+            yield old_t, row
+            row = [0.0] * x_size
+        old_t = t
+        for i in range(len(zs)):
+            x = x_start + i
+            if x >= x_size:
+                continue
+            row[x] = zs[i]
+    yield old_t, row
+
+def palette_parse(palette_input):
+    palettes = { 'default': default_palette, 'extended': extended_palette, 'charolstra': charolstra_palette, 'twente': twente_palette, 'multipass': multipass_palette }
+    return palettes.get(palette_input, default_palette)
+
 def gzip_wrap(path):
     "hides silly CRC errors"
     iterator = gzip.open(path, 'rb')
@@ -189,6 +289,8 @@ if args.end_time and args.head_time:
 if args.head_time and args.tail_time:
     print("Can't combine --head and --tail")
     sys.exit(2)
+
+selected_palette = palette_parse(args.palette)
 
 print("loading")
 
@@ -290,91 +392,8 @@ if args.compress:
 
 print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), height2, min_z, max_z))
 
-def default_palette():
-    return [(i, i, 50) for i in range(256)]
-
-def extended_palette():
-    p = [(0,0,50)]
-    for i in range(1, 256):
-        p.append((i, i-1, 50))
-        p.append((i-1, i, 50))
-        p.append((i, i, 50))
-    return p
-
-def charolstra_palette():
-    p = []
-    for i in range(256):
-        g = i / 255.0
-        c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
-        p.append((int(c[0]*256), int(c[1]*256), int(c[2]*256)))
-    return p
-
-def twente_palette():
-    p = []
-    for i in range(20, 100, 2):
-        p.append((0, 0, i))
-    for i in range(256):
-        g = i / 255.0
-        p.append((int(g*255), 0, int(g*155)+100))
-    for i in range(256):
-        p.append((255, i, 255))
-    # intentionally blow out the highs
-    for i in range(100):
-        p.append((255, 255, 255))
-    return p
-
-def rgb_fn(palette):
-    "palette is a list of tuples, returns a function of z"
-    def rgb_inner(z):
-        tone = (z - min_z) / (max_z - min_z)
-        tone_scaled = int(tone * (len(palette)-1))
-        return palette[tone_scaled]
-    return rgb_inner
-
-def collate_row(x_size):
-    # this is more fragile than the old code
-    # sensitive to timestamps that are out of order
-    old_t = None
-    row = [0.0] * x_size
-    for line in raw_data():
-        line = [s.strip() for s in line.strip().split(',')]
-        #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
-        line = [s for s in line if s]
-        t = line[0] + ' ' + line[1]
-        if '-' not in line[0]:
-            t = line[0]
-        if t not in times:
-            continue  # happens with live files and time cropping
-        if old_t is None:
-            old_t = t
-        low = int(line[2]) + args.offset_freq
-        high = int(line[3]) + args.offset_freq
-        step = float(line[4])
-        columns = list(frange(low, high, step))
-        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
-        if args.low_freq and columns[stop_col] < args.low_freq:
-            continue
-        if args.high_freq and columns[start_col] > args.high_freq:
-            continue
-        start_freq = columns[start_col]
-        if args.low_freq:
-            start_freq = max(args.low_freq, start_freq)
-        # sometimes fails?  skip or abort?
-        x_start = freqs.index(start_freq)
-        zs = floatify(line[6+start_col:6+stop_col+1])
-        if t != old_t:
-            yield old_t, row
-            row = [0.0] * x_size
-        old_t = t
-        for i in range(len(zs)):
-            x = x_start + i
-            if x >= x_size:
-                continue
-            row[x] = zs[i]
-    yield old_t, row
-
 print("drawing")
-rgb = rgb_fn(default_palette())
+rgb = rgb_fn(selected_palette())
 tape_height = 25
 img = Image.new("RGB", (len(freqs), tape_height + height2))
 pix = img.load()
@@ -574,9 +593,3 @@ shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
 
 print("saving")
 img.save(output)
-
-
-
-
-
-
