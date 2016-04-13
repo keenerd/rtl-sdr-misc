@@ -65,6 +65,8 @@ def build_parser():
         help='Duration to use, starting at the beginning.')
     slicegroup.add_argument('--tail', dest='tail_time', default=None,
         help='Duration to use, stopping at the end.')
+    parser.add_argument('--palette', dest='palette', default='default',
+        help='Set Color Palette: default, extended, charolstra, twente')
     return parser
 
 def frange(start, stop, step):
@@ -140,6 +142,16 @@ def date_parse(s):
         return datetime.datetime.fromtimestamp(int(s))
     return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
 
+def palette_parse(s):
+    palettes = {'default': default_palette,
+                'extended': extended_palette,
+                'charolstra': charolstra_palette,
+                'twente': twente_palette,
+               }
+    if s not in palettes:
+        print('WARNING: %s not a valid palette' % s)
+    return palettes.get(s, default_palette)
+
 def gzip_wrap(path):
     "hides silly CRC errors"
     iterator = gzip.open(path, 'rb')
@@ -179,6 +191,7 @@ def prepare_args():
     reparse(args, 'end_time', date_parse)
     reparse(args, 'head_time', duration_parse)
     reparse(args, 'tail_time', duration_parse)
+    reparse(args, 'palette', palette_parse)
     reparse(args, 'head_time', lambda s: datetime.timedelta(seconds=s))
     reparse(args, 'tail_time', lambda s: datetime.timedelta(seconds=s))
     args.compress = float(args.compress)
@@ -319,8 +332,8 @@ def extended_palette():
 
 def charolstra_palette():
     p = []
-    for i in range(256):
-        g = i / 255.0
+    for i in range(1024):
+        g = i / 1023.0
         c = colorsys.hsv_to_rgb(0.65-(g-0.08), 1, 0.2+g)
         p.append((int(c[0]*256), int(c[1]*256), int(c[2]*256)))
     return p
@@ -392,7 +405,7 @@ def collate_row(x_size):
 def push_pixels(args):
     "returns PIL img"
     width = len(args.freqs)
-    rgb = rgb_fn(default_palette(), args.db_limit[0], args.db_limit[1])
+    rgb = rgb_fn(args.palette(), args.db_limit[0], args.db_limit[1])
     img = Image.new("RGB", (width, tape_height + args.pix_height))
     pix = img.load()
     x_size = img.size[0]
