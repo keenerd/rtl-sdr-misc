@@ -66,7 +66,7 @@ def build_parser():
     slicegroup.add_argument('--tail', dest='tail_time', default=None,
         help='Duration to use, stopping at the end.')
     parser.add_argument('--palette', dest='palette', default='default',
-        help='Set Color Palette: default, extended, charolstra, twente')
+        help='Set Color Palette: default, extended, charolastra, twente')
     return parser
 
 def frange(start, stop, step):
@@ -145,7 +145,7 @@ def date_parse(s):
 def palette_parse(s):
     palettes = {'default': default_palette,
                 'extended': extended_palette,
-                'charolstra': charolstra_palette,
+                'charolastra': charolastra_palette,
                 'twente': twente_palette,
                }
     if s not in palettes:
@@ -330,7 +330,7 @@ def extended_palette():
         p.append((i, i, 50))
     return p
 
-def charolstra_palette():
+def charolastra_palette():
     p = []
     for i in range(1024):
         g = i / 1023.0
