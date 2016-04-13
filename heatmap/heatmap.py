@@ -20,43 +20,13 @@ except:
 # blue-less marker grid
 # fast summary thing
 # gain normalization
+# check pil version for brokenness
 
 vera_url = "https://github.com/keenerd/rtl-sdr-misc/raw/master/heatmap/Vera.ttf"
 vera_path = os.path.join(sys.path[0], "Vera.ttf")
 
-parser = argparse.ArgumentParser(description='Convert rtl_power CSV files into graphics.')
-parser.add_argument('input_path', metavar='INPUT', type=str,
-    help='Input CSV file. (may be a .csv.gz)')
-parser.add_argument('output_path', metavar='OUTPUT', type=str,
-    help='Output image. (various extensions supported)')
-parser.add_argument('--offset', dest='offset_freq', default=None,
-    help='Shift the entire frequency range, for up/down converters.')
-parser.add_argument('--ytick', dest='time_tick', default=None,
-    help='Place ticks along the Y axis every N seconds/minutes/hours/days.')
-parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
-    help='Minimum and maximum db values.')
-parser.add_argument('--compress', dest='compress', default=0,
-    help='Apply a gradual asymptotic time compression.  Values > 1 are the new target height, values < 1 are a scaling factor.')
-slicegroup = parser.add_argument_group('Slicing',
-    'Efficiently render a portion of the data. (optional)  Frequencies can take G/M/k suffixes.  Timestamps look like "YYYY-MM-DD HH:MM:SS"  Durations take d/h/m/s suffixes.')
-slicegroup.add_argument('--low', dest='low_freq', default=None,
-    help='Minimum frequency for a subrange.')
-slicegroup.add_argument('--high', dest='high_freq', default=None,
-    help='Maximum frequency for a subrange.')
-slicegroup.add_argument('--begin', dest='begin_time', default=None,
-    help='Timestamp to start at.')
-slicegroup.add_argument('--end', dest='end_time', default=None,
-    help='Timestamp to stop at.')
-slicegroup.add_argument('--head', dest='head_time', default=None,
-    help='Duration to use, starting at the beginning.')
-slicegroup.add_argument('--tail', dest='tail_time', default=None,
-    help='Duration to use, stopping at the end.')
-
-# hack, http://stackoverflow.com/questions/9025204/
-for i, arg in enumerate(sys.argv):
-    if (arg[0] == '-') and arg[1].isdigit():
-        sys.argv[i] = ' ' + arg
-args = parser.parse_args()
+tape_height = 25
+tape_pt = 10
 
 if not os.path.isfile(vera_path):
     urlretrieve(vera_url, vera_path)
@@ -67,6 +37,35 @@ except:
     print('Please download the Vera.ttf font and place it in the current directory.')
     sys.exit(1)
 
+def build_parser():
+    parser = argparse.ArgumentParser(description='Convert rtl_power CSV files into graphics.')
+    parser.add_argument('input_path', metavar='INPUT', type=str,
+        help='Input CSV file. (may be a .csv.gz)')
+    parser.add_argument('output_path', metavar='OUTPUT', type=str,
+        help='Output image. (various extensions supported)')
+    parser.add_argument('--offset', dest='offset_freq', default=None,
+        help='Shift the entire frequency range, for up/down converters.')
+    parser.add_argument('--ytick', dest='time_tick', default=None,
+        help='Place ticks along the Y axis every N seconds/minutes/hours/days.')
+    parser.add_argument('--db', dest='db_limit', nargs=2, default=None,
+        help='Minimum and maximum db values.')
+    parser.add_argument('--compress', dest='compress', default=0,
+        help='Apply a gradual asymptotic time compression.  Values > 1 are the new target height, values < 1 are a scaling factor.')
+    slicegroup = parser.add_argument_group('Slicing',
+        'Efficiently render a portion of the data. (optional)  Frequencies can take G/M/k suffixes.  Timestamps look like "YYYY-MM-DD HH:MM:SS"  Durations take d/h/m/s suffixes.')
+    slicegroup.add_argument('--low', dest='low_freq', default=None,
+        help='Minimum frequency for a subrange.')
+    slicegroup.add_argument('--high', dest='high_freq', default=None,
+        help='Maximum frequency for a subrange.')
+    slicegroup.add_argument('--begin', dest='begin_time', default=None,
+        help='Timestamp to start at.')
+    slicegroup.add_argument('--end', dest='end_time', default=None,
+        help='Timestamp to stop at.')
+    slicegroup.add_argument('--head', dest='head_time', default=None,
+        help='Duration to use, starting at the beginning.')
+    slicegroup.add_argument('--tail', dest='tail_time', default=None,
+        help='Duration to use, stopping at the end.')
+    return parser
 
 def frange(start, stop, step):
     i = 0
@@ -154,141 +153,158 @@ def gzip_wrap(path):
         except IOError:
             running = False
 
-def reparse(label, fn):
+def time_compression(y, decay):
+    return int(round((1/decay)*math.exp(y*decay) - 1/decay))
+
+def reparse(args, label, fn):
     if args.__getattribute__(label) is None:
         return
     args.__setattr__(label, fn(args.__getattribute__(label)))
 
-path = args.input_path
-output = args.output_path
+def prepare_args():
+    # hack, http://stackoverflow.com/questions/9025204/
+    for i, arg in enumerate(sys.argv):
+        if (arg[0] == '-') and arg[1].isdigit():
+            sys.argv[i] = ' ' + arg
+    parser = build_parser()
+    args = parser.parse_args()
 
-raw_data = lambda: open(path)
-if path.endswith('.gz'):
-    raw_data = lambda: gzip_wrap(path)
+    reparse(args, 'low_freq', freq_parse)
+    reparse(args, 'high_freq', freq_parse)
+    reparse(args, 'offset_freq', freq_parse)
+    if args.offset_freq is None:
+        args.offset_freq = 0
+    reparse(args, 'time_tick', duration_parse)
+    reparse(args, 'begin_time', date_parse)
+    reparse(args, 'end_time', date_parse)
+    reparse(args, 'head_time', duration_parse)
+    reparse(args, 'tail_time', duration_parse)
+    reparse(args, 'head_time', lambda s: datetime.timedelta(seconds=s))
+    reparse(args, 'tail_time', lambda s: datetime.timedelta(seconds=s))
+    args.compress = float(args.compress)
 
-reparse('low_freq', freq_parse)
-reparse('high_freq', freq_parse)
-reparse('offset_freq', freq_parse)
-if args.offset_freq is None:
-    args.offset_freq = 0
-reparse('time_tick', duration_parse)
-reparse('begin_time', date_parse)
-reparse('end_time', date_parse)
-reparse('head_time', duration_parse)
-reparse('tail_time', duration_parse)
-reparse('head_time', lambda s: datetime.timedelta(seconds=s))
-reparse('tail_time', lambda s: datetime.timedelta(seconds=s))
-args.compress = float(args.compress)
+    if args.db_limit:
+        a,b = args.db_limit
+        args.db_limit = (float(a), float(b))
 
-if args.begin_time and args.tail_time:
-    print("Can't combine --begin and --tail")
-    sys.exit(2)
-if args.end_time and args.head_time:
-    print("Can't combine --end and --head")
-    sys.exit(2)
-if args.head_time and args.tail_time:
-    print("Can't combine --head and --tail")
-    sys.exit(2)
+    if args.begin_time and args.tail_time:
+        print("Can't combine --begin and --tail")
+        sys.exit(2)
+    if args.end_time and args.head_time:
+        print("Can't combine --end and --head")
+        sys.exit(2)
+    if args.head_time and args.tail_time:
+        print("Can't combine --head and --tail")
+        sys.exit(2)
+    return args
 
-print("loading")
+def open_raw_data(path):
+    raw_data = lambda: open(path)
+    if path.endswith('.gz'):
+        raw_data = lambda: gzip_wrap(path)
+    return raw_data
 
 def slice_columns(columns, low_freq, high_freq):
     start_col = 0
     stop_col  = len(columns)
-    if args.low_freq  is not None and low <= args.low_freq  <= high:
-        start_col = sum(f<args.low_freq   for f in columns)
-    if args.high_freq is not None and low <= args.high_freq <= high:
-        stop_col  = sum(f<=args.high_freq for f in columns)
+    if low_freq  is not None and low <= low_freq  <= high:
+        start_col = sum(f<low_freq   for f in columns)
+    if high_freq is not None and low <= high_freq <= high:
+        stop_col  = sum(f<=high_freq for f in columns)
     return start_col, stop_col-1
 
-freqs = set()
-f_cache = set()
-times = set()
-labels = set()
-min_z = 0
-max_z = -100
-start, stop = None, None
+def summarize_pass(args):
+    "pumps a bunch of data back into the args construct"
+    freqs = set()
+    f_cache = set()
+    times = set()
+    labels = set()
+    min_z = 0
+    max_z = -100
+    start, stop = None, None
 
-if args.db_limit:
-    min_z = min(map(float, args.db_limit))
-    max_z = max(map(float, args.db_limit))
+    for line in raw_data():
+        line = [s.strip() for s in line.strip().split(',')]
+        #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
+        line = [s for s in line if s]
 
-for line in raw_data():
-    line = [s.strip() for s in line.strip().split(',')]
-    #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
-    line = [s for s in line if s]
+        low  = int(line[2]) + args.offset_freq
+        high = int(line[3]) + args.offset_freq
+        step = float(line[4])
+        t = line[0] + ' ' + line[1]
+        if '-' not in line[0]:
+            t = line[0]
 
-    low  = int(line[2]) + args.offset_freq
-    high = int(line[3]) + args.offset_freq
-    step = float(line[4])
-    t = line[0] + ' ' + line[1]
-    if '-' not in line[0]:
-        t = line[0]
+        if args.low_freq  is not None and high < args.low_freq:
+            continue
+        if args.high_freq is not None and args.high_freq < low:
+            continue
+        if args.begin_time is not None and date_parse(t) < args.begin_time:
+            continue
+        if args.end_time is not None and date_parse(t) > args.end_time:
+            break
+        times.add(t)
+        columns = list(frange(low, high, step))
+        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        f_key = (columns[start_col], columns[stop_col], step)
+        zs = line[6+start_col:6+stop_col+1]
+        if not zs:
+            continue
+        if f_key not in f_cache:
+            freq2 = list(frange(*f_key))[:len(zs)]
+            freqs.update(freq2)
+            #freqs.add(f_key[1])  # high
+            #labels.add(f_key[0])  # low
+            f_cache.add(f_key)
 
-    if args.low_freq  is not None and high < args.low_freq:
-        continue
-    if args.high_freq is not None and args.high_freq < low:
-        continue
-    if args.begin_time is not None and date_parse(t) < args.begin_time:
-        continue
-    if args.end_time is not None and date_parse(t) > args.end_time:
-        break
-    times.add(t)
-    columns = list(frange(low, high, step))
-    start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
-    f_key = (columns[start_col], columns[stop_col], step)
-    zs = line[6+start_col:6+stop_col+1]
-    if not zs:
-        continue
-    if f_key not in f_cache:
-        freq2 = list(frange(*f_key))[:len(zs)]
-        freqs.update(freq2)
-        #freqs.add(f_key[1])  # high
-        #labels.add(f_key[0])  # low
-        f_cache.add(f_key)
+        if not args.db_limit:
+            zs = floatify(zs)
+            min_z = min(min_z, min(zs))
+            max_z = max(max_z, max(zs))
+
+        if start is None:
+            start = date_parse(t)
+        stop = date_parse(t)
+        if args.head_time is not None and args.end_time is None:
+            args.end_time = start + args.head_time
 
     if not args.db_limit:
-        zs = floatify(zs)
-        min_z = min(min_z, min(zs))
-        max_z = max(max_z, max(zs))
+        args.db_limit = (min_z, max_z)
 
-    if start is None:
-        start = date_parse(t)
-    stop = date_parse(t)
-    if args.head_time is not None and args.end_time is None:
-        args.end_time = start + args.head_time
+    if args.tail_time is not None:
+        times = [t for t in times if date_parse(t) >= (stop - args.tail_time)]
+        start = date_parse(min(times))
 
-if args.tail_time is not None:
-    times = [t for t in times if date_parse(t) >= (stop - args.tail_time)]
-    start = date_parse(min(times))
+    freqs = list(sorted(list(freqs)))
+    times = list(sorted(list(times)))
+    labels = list(sorted(list(labels)))
 
-freqs = list(sorted(list(freqs)))
-times = list(sorted(list(times)))
-labels = list(sorted(list(labels)))
+    if len(labels) == 1:
+        delta = (max(freqs) - min(freqs)) / (len(freqs) / 500.0)
+        delta = round(delta / 10**int(math.log10(delta))) * 10**int(math.log10(delta))
+        delta = int(delta)
+        lower = int(math.ceil(min(freqs) / delta) * delta)
+        labels = list(range(lower, int(max(freqs)), delta))
 
-if len(labels) == 1:
-    delta = (max(freqs) - min(freqs)) / (len(freqs) / 500.0)
-    delta = round(delta / 10**int(math.log10(delta))) * 10**int(math.log10(delta))
-    delta = int(delta)
-    lower = int(math.ceil(min(freqs) / delta) * delta)
-    labels = list(range(lower, int(max(freqs)), delta))
-
-def compression(y, decay):
-    return int(round((1/decay)*math.exp(y*decay) - 1/decay))
-
-height = len(times)
-height2 = height
-if args.compress:
-    if args.compress > height:
-        args.compress = 0
-        print("Image too short, disabling compression")
-    if 0 < args.compress < 1:
-        args.compress *= height
+    height = len(times)
+    pix_height = height
     if args.compress:
-        args.compress = -1 / args.compress
-        height2 = compression(height, args.compress)
+        if args.compress > height:
+            args.compress = 0
+            print("Image too short, disabling time compression")
+        if 0 < args.compress < 1:
+            args.compress *= height
+        if args.compress:
+            args.compress = -1 / args.compress
+            pix_height = time_compression(height, args.compress)
 
-print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), height2, min_z, max_z))
+    print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), pix_height, args.db_limit[0], args.db_limit[1]))
+    args.freqs = freqs
+    args.times = times
+    args.labels = labels
+    args.pix_height = pix_height
+    args.start_stop = (start, stop)
+    args.pixel_bandwidth = step
 
 def default_palette():
     return [(i, i, 50) for i in range(256)]
@@ -323,7 +339,7 @@ def twente_palette():
         p.append((255, 255, 255))
     return p
 
-def rgb_fn(palette):
+def rgb_fn(palette, min_z, max_z):
     "palette is a list of tuples, returns a function of z"
     def rgb_inner(z):
         tone = (z - min_z) / (max_z - min_z)
@@ -343,7 +359,7 @@ def collate_row(x_size):
         t = line[0] + ' ' + line[1]
         if '-' not in line[0]:
             t = line[0]
-        if t not in times:
+        if t not in args.times:
             continue  # happens with live files and time cropping
         if old_t is None:
             old_t = t
@@ -360,7 +376,7 @@ def collate_row(x_size):
         if args.low_freq:
             start_freq = max(args.low_freq, start_freq)
         # sometimes fails?  skip or abort?
-        x_start = freqs.index(start_freq)
+        x_start = args.freqs.index(start_freq)
         zs = floatify(line[6+start_col:6+stop_col+1])
         if t != old_t:
             yield old_t, row
@@ -373,35 +389,36 @@ def collate_row(x_size):
             row[x] = zs[i]
     yield old_t, row
 
-print("drawing")
-rgb = rgb_fn(default_palette())
-tape_height = 25
-img = Image.new("RGB", (len(freqs), tape_height + height2))
-pix = img.load()
-x_size = img.size[0]
-average = [0.0] * len(freqs)
-tally = 0
-old_y = None
-for t, zs in collate_row(x_size):
-    y = times.index(t)
-    if not args.compress:
-        for x in range(len(zs)):
-            pix[x,y+tape_height] = rgb(zs[x])
-        continue
-    # ugh
-    y = height2 - compression(height - y, args.compress)
-    if old_y is None:
+def push_pixels(args):
+    "returns PIL img"
+    width = len(args.freqs)
+    rgb = rgb_fn(default_palette(), args.db_limit[0], args.db_limit[1])
+    img = Image.new("RGB", (width, tape_height + args.pix_height))
+    pix = img.load()
+    x_size = img.size[0]
+    average = [0.0] * width
+    tally = 0
+    old_y = None
+    for t, zs in collate_row(x_size):
+        y = args.times.index(t)
+        if not args.compress:
+            for x in range(len(zs)):
+                pix[x,y+tape_height] = rgb(zs[x])
+            continue
+        # ugh
+        y = args.pix_height - time_compression(height - y, args.compress)
+        if old_y is None:
+            old_y = y
+        if old_y != y:
+            for x in range(len(average)):
+                pix[x,old_y+tape_height] = rgb(average[x]/tally)
+            tally = 0
+            average = [0.0] * width
         old_y = y
-    if old_y != y:
-        for x in range(len(average)):
-            pix[x,old_y+tape_height] = rgb(average[x]/tally)
-        tally = 0
-        average = [0.0] * len(freqs)
-    old_y = y
-    for x in range(len(zs)):
-        average[x] += zs[x]
-    tally += 1
-
+        for x in range(len(zs)):
+            average[x] += zs[x]
+        tally += 1
+    return img
 
 def closest_index(n, m_list, interpolate=False):
     "assumes sorted m_list, returns two points for interpolate"
@@ -452,35 +469,39 @@ def blend(percent, c1, c2):
     c3 = map(int, map(round, [r,g,b]))
     return tuple(c3)
 
-def tape_lines(interval, y1, y2, used=set()):
+def tape_lines(draw, freqs, interval, y1, y2, used=set()):
+    min_f = min(freqs)
+    max_f = max(freqs)
     "returns the number of lines"
-    low_f = (min(freqs) // interval) * interval
-    high_f = (1 + max(freqs) // interval) * interval
+    low_f = (min_f // interval) * interval
+    high_f = (1 + max_f // interval) * interval
     hits = 0
     blur = lambda p: blend(p, (255, 255, 0), (0, 0, 0))
     for i in range(int(low_f), int(high_f), int(interval)):
-        if not (min(freqs) < i < max(freqs)):
+        if not (min_f < i < max_f):
             continue
         hits += 1
         if i in used:
             continue
-        x1,x2 = closest_index(i, freqs, interpolate=True)
+        x1,x2 = closest_index(i, args.freqs, interpolate=True)
         if x1 == x2:
             draw.line([x1,y1,x1,y2], fill='black')
         else:
-            percent = (i - freqs[x1]) / float(freqs[x2] - freqs[x1])
+            percent = (i - args.freqs[x1]) / float(args.freqs[x2] - args.freqs[x1])
             draw.line([x1,y1,x1,y2], fill=blur(percent))
             draw.line([x2,y1,x2,y2], fill=blur(1-percent))
         used.add(i)
     return hits
 
-def tape_text(interval, y, used=set()):
-    low_f = (min(freqs) // interval) * interval
-    high_f = (1 + max(freqs) // interval) * interval
+def tape_text(img, freqs, interval, y, used=set()):
+    min_f = min(freqs)
+    max_f = max(freqs)
+    low_f = (min_f // interval) * interval
+    high_f = (1 + max_f // interval) * interval
     for i in range(int(low_f), int(high_f), int(interval)):
         if i in used:
             continue
-        if not (min(freqs) < i < max(freqs)):
+        if not (min_f < i < max_f):
             continue
         x = closest_index(i, freqs)
         s = str(i)
@@ -500,83 +521,89 @@ def tape_text(interval, y, used=set()):
         img.paste(w, (x - w.size[0]//2, y))
         used.add(i)
 
-def shadow_text(x, y, s, font, fg_color='white', bg_color='black'):
+def shadow_text(draw, x, y, s, font, fg_color='white', bg_color='black'):
     draw.text((x+1, y+1), s, font=font, fill=bg_color)
     draw.text((x, y), s, font=font, fill=fg_color)
 
+def create_labels(args, img):
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+    pixel_bandwidth = args.pixel_bandwidth
+
+    draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
+    min_freq = min(args.freqs)
+    max_freq = max(args.freqs)
+    delta = max_freq - min_freq
+    width = len(args.freqs)
+    label_base = 9
+
+    for i in range(label_base, 0, -1):
+        interval = int(10**i)
+        low_f = (min_freq // interval) * interval
+        high_f = (1 + max_freq // interval) * interval
+        hits = len(range(int(low_f), int(high_f), interval))
+        if hits >= 4:
+            label_base = i
+            break
+    label_base = 10**label_base
+
+    for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
+        hits = tape_lines(draw, args.freqs, label_base/scale, y, tape_height)
+        pixels_per_hit = width / hits
+        if pixels_per_hit > 50:
+            tape_text(img, args.freqs, label_base/scale, y-tape_pt)
+        if pixels_per_hit < 10:
+            break
+
+    if args.time_tick:
+        label_format = "%H:%M:%S"
+        if args.time_tick % (60*60*24) == 0:
+            label_format = "%Y-%m-%d"
+        elif args.time_tick % 60 == 0:
+            label_format = "%H:%M"
+        label_next = datetime.datetime(start.year, start.month, start.day, start.hour)
+        tick_delta = datetime.timedelta(seconds = args.time_tick)
+        while label_next < start:
+            label_next += tick_delta
+        last_y = -100
+        for y,t in enumerate(args.times):
+            label_time = date_parse(t)
+            if label_time < label_next:
+                continue
+            if args.compress:
+                y = args.full_height - time_compression(height - y, args.compress)
+            if y - last_y > 15:
+                shadow_text(draw, 2, y+tape_height, label_next.strftime(label_format), font)
+                last_y = y
+            label_next += tick_delta
+
+
+    start, stop = args.start_stop
+    duration = stop - start
+    duration = duration.days * 24*60*60 + duration.seconds + 30
+    pixel_height = duration / len(args.times)
+    hours = int(duration / 3600)
+    minutes = int((duration - 3600*hours) / 60)
+    margin = 2
+    if args.time_tick:
+        margin = 60
+    shadow_text(draw, margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
+    shadow_text(draw, margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min_freq/1e6, (max_freq+pixel_bandwidth)/1e6), font)
+    shadow_text(draw, margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_bandwidth, int(round(pixel_height))), font)
+    shadow_text(draw, margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
+    # bin size
+
+print("loading")
+args = prepare_args()
+raw_data = open_raw_data(args.input_path)
+summarize_pass(args)
+
+print("drawing")
+img = push_pixels(args)
+
 print("labeling")
-tape_pt = 10
-draw = ImageDraw.Draw(img)
-font = ImageFont.load_default()
-pixel_width = step
-
-draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
-min_freq = min(freqs)
-max_freq = max(freqs)
-delta = max_freq - min_freq
-width = len(freqs)
-label_base = 9
-
-for i in range(label_base, 0, -1):
-    interval = int(10**i)
-    low_f = (min_freq // interval) * interval
-    high_f = (1 + max_freq // interval) * interval
-    hits = len(range(int(low_f), int(high_f), interval))
-    if hits >= 4:
-        label_base = i
-        break
-label_base = 10**label_base
-
-for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
-    hits = tape_lines(label_base/scale, y, tape_height)
-    pixels_per_hit = width / hits
-    if pixels_per_hit > 50:
-        tape_text(label_base/scale, y-tape_pt)
-    if pixels_per_hit < 10:
-        break
-
-if args.time_tick:
-    label_format = "%H:%M:%S"
-    if args.time_tick % (60*60*24) == 0:
-        label_format = "%Y-%m-%d"
-    elif args.time_tick % 60 == 0:
-        label_format = "%H:%M"
-    label_next = datetime.datetime(start.year, start.month, start.day, start.hour)
-    tick_delta = datetime.timedelta(seconds = args.time_tick)
-    while label_next < start:
-        label_next += tick_delta
-    last_y = -100
-    for y,t in enumerate(times):
-        label_time = date_parse(t)
-        if label_time < label_next:
-            continue
-        if args.compress:
-            y = height2 - compression(height - y, args.compress)
-        if y - last_y > 15:
-            shadow_text(2, y+tape_height, label_next.strftime(label_format), font)
-            last_y = y
-        label_next += tick_delta
-
-
-duration = stop - start
-duration = duration.days * 24*60*60 + duration.seconds + 30
-pixel_height = duration / len(times)
-hours = int(duration / 3600)
-minutes = int((duration - 3600*hours) / 60)
-margin = 2
-if args.time_tick:
-    margin = 60
-shadow_text(margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
-shadow_text(margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min(freqs)/1e6, (max(freqs)+pixel_width)/1e6), font)
-shadow_text(margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_width, int(round(pixel_height))), font)
-shadow_text(margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
-# bin size
+create_labels(args, img)
 
 print("saving")
-img.save(output)
-
-
-
-
-
+img.save(args.output_path)
 
