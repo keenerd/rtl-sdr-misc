@@ -34,9 +34,11 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <pthread.h>
 //#include "config.h"
 #include "sounddecoder.h"
 #include "callbacks.h"
+#include "../tcp_listener/tcp_listener.h"
 
 #define MAX_BUFFER_LENGTH 2048
 //#define MAX_BUFFER_LENGTH 8190
@@ -48,10 +50,12 @@ static unsigned int buffer_count=0;
 #endif
 static int debug_nmea;
 static int sock;
+static int use_tcp = 0;
+
 static struct addrinfo* addr=NULL;
 
 static int initSocket(const char *host, const char *portname);
-
+int send_nmea( const char *sentence, unsigned int length);
 
 void sound_level_changed(float level, int channel, unsigned char high) {
     if (high != 0)
@@ -65,7 +69,7 @@ void nmea_sentence_received(const char *sentence,
                           unsigned char sentences,
                           unsigned char sentencenum) {
     if (sentences == 1) {
-        if (sendto(sock, sentence, length, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
+        if (send_nmea( sentence, length) == -1) abort();
         if (debug_nmea) fprintf(stderr, "%s", sentence);
     } else {
         if (buffer_count + length < MAX_BUFFER_LENGTH) {
@@ -76,22 +80,39 @@ void nmea_sentence_received(const char *sentence,
         }
 
         if (sentences == sentencenum && buffer_count > 0) {
-            if (sendto(sock, buffer, buffer_count, 0, addr->ai_addr, addr->ai_addrlen) == -1) abort();
+            if (send_nmea( buffer, buffer_count) == -1) abort();
             if (debug_nmea) fprintf(stderr, "%s", buffer);
             buffer_count=0;
         };
     }
 }
-int init_ais_decoder(char * host, char * port ,int show_levels,int _debug_nmea,int buf_len,int time_print_stats){
+
+int send_nmea( const char *sentence, unsigned int length) {
+	if( use_tcp) {
+		return add_nmea_ais_message(sentence, length);
+	}
+	else {
+		return sendto(sock, sentence, length, 0, addr->ai_addr, addr->ai_addrlen);
+	}
+}
+
+int init_ais_decoder(char * host, char * port ,int show_levels,int _debug_nmea,int buf_len,int time_print_stats, int use_tcp_listener, int tcp_keep_ais_time){
 	debug_nmea=_debug_nmea;
+	use_tcp = use_tcp_listener;
 	if(debug_nmea)
 		fprintf(stderr,"Log NMEA sentences to console ON\n");
 	else
 		fprintf(stderr,"Log NMEA sentences to console OFF\n");
-		
-    if (!initSocket(host, port)) {
-        return EXIT_FAILURE;
-    }
+	if( !use_tcp_listener) {
+		if (!initSocket(host, port)) {
+			return EXIT_FAILURE;
+		}
+	}
+	else {
+		if (!initTcpSocket(port, debug_nmea, tcp_keep_ais_time)) {
+			return EXIT_FAILURE;
+		}
+	}
     if (show_levels) on_sound_level_changed=sound_level_changed;
     on_nmea_sentence_received=nmea_sentence_received;
 	initSoundDecoder(buf_len,time_print_stats); 
