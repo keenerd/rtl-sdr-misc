@@ -26,6 +26,8 @@ Use: rtl_ais [options] [outputfile]
         Built-in AIS decoder options:
         [-h host (default: 127.0.0.1)]
         [-P port (default: 10110)]
+        [-T use TCP communication as tcp listener ( -h is ignored)]
+        [-t time to keep ais messages in sec, using tcp listener (default: 15)]
         [-n log NMEA sentences to console (stderr) (default off)]
         [-L log sound levels to console (stderr) (default off)]
         [-S seconds_for_decoder_stats (default 0=off)]
