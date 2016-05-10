@@ -2,9 +2,6 @@
 // tcp_listener.c
 // Written by Peter Schultz, hp@hpes.dk
 // ------------------------------------------------------------
-#include <netdb.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <getopt.h>
 #include <string.h>
 #include <stdio.h>
@@ -12,6 +9,15 @@
 #include <errno.h>
 #include <stdio.h>
 #include <pthread.h>
+
+#if defined (__WIN32__)
+	#include <winsock2.h>
+	#include <ws2tcpip.h>
+#else
+	#include <netdb.h>
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+#endif
 
 typedef struct t_sockIo {
 	int sock;
@@ -96,7 +102,11 @@ void closeTcpSocket() {
 
 	// The easy solution is sleep for a while before shutdown completes
 	shutdown_in_progress = 1;
+#if defined (__WIN32__)
+	Sleep(3000);
+#else
 	sleep(3);
+#endif
 	shutdown( sockfd,2);
 	close( sockfd);
 }
@@ -336,7 +346,9 @@ void delete_node(P_TCP_SOCK p) {
 // Return error category. Some errors we can live with, some we can't
 // ------------------------------------------------------------------
 int error_category(int rc) {
-
+#if defined (__WIN32__)
+	return -1; // Just work as sis
+#else
 	switch (rc) {
 	// Fatal errors
 	case EINVAL:		 // The listen function was not invoked prior to accept.
@@ -371,5 +383,6 @@ int error_category(int rc) {
 		return -1;
 
 	}
+#endif 
 }
 
