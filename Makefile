@@ -44,7 +44,8 @@ SOURCES= \
 	./aisdecoder/lib/receiver.c \
 	./aisdecoder/lib/protodec.c \
 	./aisdecoder/lib/hmalloc.c \
-	./aisdecoder/lib/filter.c
+	./aisdecoder/lib/filter.c \
+	./tcp_listener/tcp_listener.c
 
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=rtl_ais
