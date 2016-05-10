@@ -534,7 +534,7 @@ int main(int argc, char **argv)
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLSi:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLS:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
