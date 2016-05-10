@@ -147,6 +147,8 @@ void usage(void)
 		"\tBuilt-in AIS decoder options:\n"
 		"\t[-h host (default: 127.0.0.1)]\n"
 		"\t[-P port (default: 10110)]\n"
+		"\t[-T use TCP communication ( -h is ignored)\n"
+		"\t[-t time to keep ais messages in sec, using tcp listener (default: 15)\n"
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
 		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
@@ -166,9 +168,16 @@ void usage(void)
 
 static void sighandler(int signum)
 {
-	fprintf(stderr, "Signal caught, exiting!\n");
-	do_exit = 1;
-	rtlsdr_cancel_async(dev);
+	switch( signum) {
+	case 13:	// Ignore sig 13, because of write to closed socket when running TCP
+		fprintf(stderr, "Broken pipe signal caught\n");
+		break;
+	default:
+		closeTcpSocket();
+		fprintf(stderr, "Signal %d caught, exiting!\n", signum);
+		do_exit = 1;
+		rtlsdr_cancel_async(dev);
+	}
 }
 int cic_9_tables[][10] = {
 	{0,},
@@ -520,11 +529,12 @@ int main(int argc, char **argv)
 	int debug_nmea = 0;
 	char * port=NULL;
 	char * host=NULL;
-
+	int  use_tcp_listener = 0;
+	int  tcp_keep_ais_time = 15;  // using tcp lister time to keep ais messages in sec.
 	pthread_cond_init(&ready, NULL);
 	pthread_mutex_init(&ready_m, NULL);
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RAP:h:nLS:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLSi:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -567,6 +577,12 @@ int main(int argc, char **argv)
 			break;
 		case 'P':
 			port=strdup(optarg);
+			break;
+		case 'T':
+			use_tcp_listener=1;
+			break;
+		case 't':
+			tcp_keep_ais_time = atoi(optarg);
 			break;
 		case 'h':
 			host=strdup(optarg);
@@ -733,7 +749,7 @@ int main(int argc, char **argv)
 		}
 	}
 	else{ // Internal AIS decoder
-		int ret=init_ais_decoder(host,port,show_levels,debug_nmea,stereo.bl_len,seconds_for_decoder_stats);
+		int ret=init_ais_decoder(host,port,show_levels,debug_nmea,stereo.bl_len,seconds_for_decoder_stats, use_tcp_listener, tcp_keep_ais_time);
 		if(ret != 0){
 			fprintf(stderr,"Error initializing built-in AIS decoder\n");
 			rtlsdr_cancel_async(dev);
