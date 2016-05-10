@@ -1,0 +1,20 @@
+Use tcp listener service insted of udp.
+These files are compiles into a library and a tcp server has the advantage that more clients can access AIS data from the same server.
+The tcp_listener is tested under raspbian jessie on a raspberry pi with 5 concurrent connections.
+Tested on OpenCPN.
+Rtl-ais runs excactly as before using udp if the -T option is not supplyed. 
+
+New options:
+Use: rtl_ais [options] [outputfile]
+...
+      [-T use TCP communication ( -h is ignored)
+      [-t time to keep ais messages in sec, using tcp listener (default: 15)
+...
+
+
+TODO: Fix to run under OSX and Windows. (I'll do the windows part if others find it usefull) 
+      Makefile must be included in rtl-ais Makefile
+      Merge of rtl-ais.c, aisdecoder.c and aisdecoder.h if it is found usefull.
+      Daemonize rtl-ais. (I'll do it if others find it usefull)
+      
+      

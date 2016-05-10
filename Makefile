@@ -1,12 +1,12 @@
 CFLAGS?=-O2 -g -Wall -W 
-CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib
+CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib -I./tcp_listener
 LDFLAGS+=-lpthread -lm
 
 UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
 #Conditional for Linux
 CFLAGS+= $(shell pkg-config --cflags librtlsdr)
-LDFLAGS+=$(shell pkg-config --libs librtlsdr)
+LDFLAGS+=$(shell pkg-config --libs librtlsdr) -L./tcp_listener -ltcp_listener
 
 else
 #
@@ -22,7 +22,6 @@ RTLSDR_LIB=/tmp/rtl-sdr/build/src
 # LIBUSB
 LIBUSB_INCLUDE=/tmp/libusb/include/libusb-1.0
 LIBUSB_LIB=/tmp/libusb/lib
-
 
 ifeq ($(UNAME),Darwin)
 #Conditional for OSX
