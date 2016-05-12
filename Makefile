@@ -6,7 +6,7 @@ UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
 #Conditional for Linux
 CFLAGS+= $(shell pkg-config --cflags librtlsdr)
-LDFLAGS+=$(shell pkg-config --libs librtlsdr) -L./tcp_listener -ltcp_listener
+LDFLAGS+=$(shell pkg-config --libs librtlsdr)
 
 else
 #
