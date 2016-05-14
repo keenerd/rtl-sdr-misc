@@ -34,7 +34,7 @@ static int _debug_nmea = 0;
 static int _debug = 0;
 static int _tcp_keep_ais_time = 15;
 static int portno;
-pthread_mutex_t lock;
+pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;;
 
 // Linked list vars.
 P_TCP_SOCK head = (P_TCP_SOCK) NULL;
@@ -54,7 +54,7 @@ typedef struct t_ais_mess {
 P_AIS_MESS ais_head = (P_AIS_MESS) NULL;
 P_AIS_MESS ais_end = (P_AIS_MESS) NULL;
 
-pthread_mutex_t ais_lock;
+pthread_mutex_t ais_lock=PTHREAD_MUTEX_INITIALIZER;;
 
 // Local Prototypes
 P_TCP_SOCK init_node();
@@ -74,7 +74,12 @@ int initTcpSocket(const char *portnumber, int debug_nmea, int tcp_keep_ais_time)
 	_debug_nmea = debug_nmea;
 	_tcp_keep_ais_time = tcp_keep_ais_time;
 	struct sockaddr_in serv_addr;
-
+#if defined (__WIN32__)
+	WSADATA wsaData;
+	WORD wVersionRequested;
+	wVersionRequested = MAKEWORD(2, 2);
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		fprintf(stderr, "Failed to create socket! error %d\n", errno);
 		return 0;
@@ -132,18 +137,26 @@ static void *tcp_listener_fn(void *arg) {
 			break;
 
 		if (rc == -2) {
+#if defined (__WIN32__)
+			closesocket(t->sock);
+#else		
 			close(t->sock);
+#endif		
 			free(t);
 			continue;
 		}
-
 		add_node(t);
-
 		pthread_create(&t->thread_t, NULL, handle_remote_close, (void *) t);
 
 	}
-	shutdown( sockfd,2);
-	close(sockfd);
+		shutdown( sockfd,2);
+#if defined (__WIN32__)
+		closesocket(t->sock);
+#else		
+		close(t->sock);
+#endif		
+	
+	
 }
 
 // ------------------------------------------------------------
@@ -195,7 +208,11 @@ void *handle_remote_close(void *arg) {
 		}
 	}
 	shutdown(t->sock, 2);
-	close(t->sock);
+#if defined (__WIN32__)
+		closesocket(t->sock);
+#else		
+		close(t->sock);
+#endif		
 	delete_node(t);
 }
 
