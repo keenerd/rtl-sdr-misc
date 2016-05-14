@@ -59,4 +59,4 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) -c $< -o $@ $(CFLAGS)
 
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
+	rm -f $(OBJECTS) $(EXECUTABLE) $(EXECUTABLE).exe
