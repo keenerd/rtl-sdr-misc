@@ -22,8 +22,8 @@
 	#include <fcntl.h>
 #endif
 
-#include "receiver.h"
-#include "hmalloc.h"
+#include "lib/receiver.h"
+#include "lib/hmalloc.h"
 
 #define MAX_FILENAME_SIZE 512
 #define ERROR_MESSAGE_LENGTH 1024
