@@ -26,24 +26,22 @@
  * alsa integration
  * better upsampler (libsamplerate?)
  * windows support
- * ais decoder
  */
 
 #include <errno.h>
-#include <signal.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
-#include <unistd.h>
 #ifdef WIN32
 	#include <fcntl.h>
 #endif
 
-
 #include <pthread.h>
 
 #include <rtl-sdr.h>
+
+#include "rtl_ais.h"
 #include "convenience.h"
 #include "aisdecoder/aisdecoder.h"
 
@@ -51,20 +49,6 @@
 #define DEFAULT_BUF_LENGTH		(16 * 16384)
 #define AUTO_GAIN			-100
 
-static pthread_t demod_thread;
-static pthread_cond_t ready;
-static pthread_mutex_t ready_m;
-static volatile int do_exit = 0;
-static rtlsdr_dev_t *dev = NULL;
-
-/* todo, less globals */
-int16_t *merged;
-int merged_len;
-FILE *file=NULL;
-int oversample = 0;
-int dc_filter = 1;
-int use_internal_aisdecoder=1;
-int seconds_for_decoder_stats=0;
 /* signals are not threadsafe by default */
 #define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
 #define safe_cond_wait(n, m) pthread_mutex_lock(m); pthread_cond_wait(n, m); pthread_mutex_unlock(m)
@@ -110,75 +94,6 @@ struct upsample_stereo
 	int     rate;
 };
 
-/* complex iq pairs */
-struct downsample_state both;
-struct downsample_state left;
-struct downsample_state right;
-/* iq pairs and real mono */
-struct demod_state left_demod;
-struct demod_state right_demod;
-/* real stereo pairs (upsampled) */
-struct upsample_stereo stereo;
-
-void usage(void)
-{
-	fprintf(stderr,
-		"rtl_ais, a simple AIS tuner\n"
-		"\t and generic dual-frequency FM demodulator\n\n"
-		"(probably not a good idea to use with e4000 tuners)\n"
-		"Use: rtl_ais [options] [outputfile]\n"
-		"\t[-l left_frequency (default: 161.975M)]\n"
-		"\t[-r right_frequency (default: 162.025M)]\n"
-		"\t    left freq < right freq\n"
-		"\t    frequencies must be within 1.2MHz\n"
-		"\t[-s sample_rate (default: 24k)]\n"
-		"\t    maximum value, might be down to 12k\n"
-		"\t[-o output_rate (default: 48k)]\n"
-		"\t    must be equal or greater than twice -s value\n"
-		"\t[-E toggle edge tuning (default: off)]\n"
-		"\t[-D toggle DC filter (default: on)]\n"
-		//"\t[-O toggle oversampling (default: off)\n"
-		"\t[-d device_index (default: 0)]\n"
-		"\t[-g tuner_gain (default: automatic)]\n"
-		"\t[-p ppm_error (default: 0)]\n"
-		"\t[-R enable RTL chip AGC (default: off)]\n"
-		"\t[-A turn off built-in AIS decoder (default: on)]\n"
-		"\t    use this option to output samples to file or stdout.\n"
-		"\tBuilt-in AIS decoder options:\n"
-		"\t[-h host (default: 127.0.0.1)]\n"
-		"\t[-P port (default: 10110)]\n"
-		"\t[-T use TCP communication ( -h is ignored)\n"
-		"\t[-t time to keep ais messages in sec, using tcp listener (default: 15)\n"
-		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
-		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
-		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
-		"\tWhen the built-in AIS decoder is disabled the samples are sent to\n"
-		"\tto [outputfile] (a '-' dumps samples to stdout)\n"
-		"\t    omitting the filename also uses stdout\n\n"
-		"\tOutput is stereo 2x16 bit signed ints\n\n"
-		"\tExamples:\n"
-		"\tReceive AIS traffic,sent UDP NMEA sentences to 127.0.0.1 port 10110\n"
-		"\t     and log the senteces to console:\n\n"
-		"\trtl_ais -n\n\n"
-		"\tTune two fm stations and play one on each channel:\n\n"
-		"\trtl_ais -l233.15M  -r233.20M -A  | play -r48k -traw -es -b16 -c2 -V1 - "
-		"\n");
-	exit(1);
-}
-
-static void sighandler(int signum)
-{
-	switch( signum) {
-	case 13:	// Ignore sig 13, because of write to closed socket when running TCP
-		fprintf(stderr, "Broken pipe signal caught\n");
-		break;
-	default:
-		closeTcpSocket();
-		fprintf(stderr, "Signal %d caught, exiting!\n", signum);
-		do_exit = 1;
-		rtlsdr_cancel_async(dev);
-	}
-}
 int cic_9_tables[][10] = {
 	{0,},
 	{9, -156,  -97, 2798, -15489, 61019, -15489, 2798,  -97, -156},
@@ -194,7 +109,7 @@ int cic_9_tables[][10] = {
 };
 
 
-void rotate_90(int16_t *buf, int len)
+static void rotate_90(int16_t *buf, int len)
 /* 90 rotation is 1+0j, 0+1j, -1+0j, 0-1j
    or [0, 1, -3, 2, -4, -5, 7, -6] */
 {
@@ -214,7 +129,7 @@ void rotate_90(int16_t *buf, int len)
 	}
 }
 
-void rotate_m90(int16_t *buf, int len)
+static void rotate_m90(int16_t *buf, int len)
 /* -90 rotation is 1+0j, 0-1j, -1+0j, 0+1j
    or [0, 1, 3, -2, -4, -5, -7, 6] */
 {
@@ -234,7 +149,7 @@ void rotate_m90(int16_t *buf, int len)
 	}
 }
 
-void fifth_order(int16_t *data, int length, int16_t *hist)
+static void fifth_order(int16_t *data, int length, int16_t *hist)
 /* for half of interleaved data */
 {
 	int i;
@@ -265,7 +180,7 @@ void fifth_order(int16_t *data, int length, int16_t *hist)
 	hist[5] = f;
 }
 
-void generic_fir(int16_t *data, int length, int *fir, int16_t *hist)
+static void generic_fir(int16_t *data, int length, const int *fir, int16_t *hist)
 /* Okay, not at all generic.  Assumes length 9, fix that eventually. */
 {
 	int d, temp, sum;
@@ -290,7 +205,7 @@ void generic_fir(int16_t *data, int length, int *fir, int16_t *hist)
 	}
 }
 
-void downsample(struct downsample_state *d)
+static void downsample(struct downsample_state *d)
 {
 	int i, ds_p;
 	ds_p = d->downsample_passes;
@@ -304,13 +219,14 @@ void downsample(struct downsample_state *d)
 	generic_fir(d->buf+1, (d->len_in>> ds_p)-1,cic_9_tables[ds_p], d->droop_q_hist);
 }
 
-void multiply(int ar, int aj, int br, int bj, int *cr, int *cj)
+static void multiply(int ar, int aj, int br, int bj, int *cr, int *cj)
 {
 	*cr = ar*br - aj*bj;
 	*cj = aj*br + ar*bj;
 }
 
-int polar_discriminant(int ar, int aj, int br, int bj)
+#if 0 // not used
+static int polar_discriminant(int ar, int aj, int br, int bj)
 {
 	int cr, cj;
 	double angle;
@@ -318,8 +234,9 @@ int polar_discriminant(int ar, int aj, int br, int bj)
 	angle = atan2((double)cj, (double)cr);
 	return (int)(angle / 3.14159 * (1<<14));
 }
+#endif
 
-int fast_atan2(int y, int x)
+static int fast_atan2(int y, int x)
 /* pre scaled for int16 */
 {
 	int yabs, angle;
@@ -342,14 +259,14 @@ int fast_atan2(int y, int x)
 	return angle;
 }
 
-int polar_disc_fast(int ar, int aj, int br, int bj)
+static int polar_disc_fast(int ar, int aj, int br, int bj)
 {
 	int cr, cj;
 	multiply(ar, aj, br, -bj, &cr, &cj);
 	return fast_atan2(cj, cr);
 }
 
-void demodulate(struct demod_state *d)
+static void demodulate(struct demod_state *d)
 {
 	int i, pcm;
 	int16_t *buf = d->buf;
@@ -368,7 +285,7 @@ void demodulate(struct demod_state *d)
 	d->pre_j = buf[d->buf_len - 1];
 }
 
-void dc_block_filter(struct demod_state *d)
+static void dc_block_filter(struct demod_state *d)
 {
 	int i, avg;
 	int64_t sum = 0;
@@ -384,7 +301,7 @@ void dc_block_filter(struct demod_state *d)
 	d->dc_avg = avg;
 }
 
-void arbitrary_upsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
+static void arbitrary_upsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
 /* linear interpolation, len1 < len2 */
 {
 	int i = 1;
@@ -407,76 +324,109 @@ void arbitrary_upsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
 	}
 }
 
-static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
+struct rtl_ais_context
 {
-	int i;
-	if (do_exit) {
+        int active, dc_filter, use_internal_aisdecoder;
+
+        pthread_t demod_thread;
+        pthread_t rtlsdr_thread;
+
+        pthread_cond_t ready;
+        pthread_mutex_t ready_m;
+
+        rtlsdr_dev_t *dev;
+        FILE *file;
+
+        /* complex iq pairs */
+        struct downsample_state both;
+        struct downsample_state left;
+        struct downsample_state right;
+        /* iq pairs and real mono */
+        struct demod_state left_demod;
+        struct demod_state right_demod;
+        /* real stereo pairs (upsampled) */
+        struct upsample_stereo stereo;
+};
+
+static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *arg)
+{
+        struct rtl_ais_context *ctx = arg;
+	unsigned i;
+	if (!ctx->active) {
 		return;}
-	pthread_rwlock_wrlock(&both.rw);
-	for (i=0; i<len; i++) {
-		both.buf[i] = ((int16_t)buf[i]) - 127;
-	}
-	pthread_rwlock_unlock(&both.rw);
-	safe_cond_signal(&ready, &ready_m);
+	pthread_rwlock_wrlock(&ctx->both.rw);
+	for (i=0; i<len; i++)
+		ctx->both.buf[i] = ((int16_t)buf[i]) - 127;
+
+	pthread_rwlock_unlock(&ctx->both.rw);
+	safe_cond_signal(&ctx->ready, &ctx->ready_m);
 }
 
-void pre_output(void)
+static void *rtlsdr_thread_fn(void *arg)
+{
+        struct rtl_ais_context *ctx = arg;
+        rtlsdr_read_async(ctx->dev, rtlsdr_callback, arg,
+                          DEFAULT_ASYNC_BUF_NUMBER,
+                          DEFAULT_BUF_LENGTH);
+        
+        ctx->active = 0;
+        return 0;
+}
+
+static void pre_output(struct rtl_ais_context *ctx)
 {
 	int i;
-	for (i=0; i<stereo.bl_len; i++) {
-		stereo.result[i*2]   = stereo.buf_left[i];
-		stereo.result[i*2+1] = stereo.buf_right[i];
+	for (i=0; i<ctx->stereo.bl_len; i++) {
+		ctx->stereo.result[i*2]   = ctx->stereo.buf_left[i];
+		ctx->stereo.result[i*2+1] = ctx->stereo.buf_right[i];
 	}
-}
-void output(void)
-{
-	fwrite(stereo.result, 2, stereo.result_len, file);
 }
 
 static void *demod_thread_fn(void *arg)
 {
-	while (!do_exit) {
-		safe_cond_wait(&ready, &ready_m);
-		pthread_rwlock_wrlock(&both.rw);
-		downsample(&both);
-		memcpy(left.buf,  both.buf, 2*both.len_out);
-		memcpy(right.buf, both.buf, 2*both.len_out);
-		pthread_rwlock_unlock(&both.rw);
-		rotate_90(left.buf, left.len_in);
-		downsample(&left);
-		memcpy(left_demod.buf, left.buf, 2*left.len_out);
-		demodulate(&left_demod);
-		if (dc_filter) {
-			dc_block_filter(&left_demod);}
+        struct rtl_ais_context *ctx = arg;
+        while (ctx->active) {
+                safe_cond_wait(&ctx->ready, &ctx->ready_m);
+                pthread_rwlock_wrlock(&ctx->both.rw);
+		downsample(&ctx->both);
+		memcpy(ctx->left.buf,  ctx->both.buf, 2*ctx->both.len_out);
+		memcpy(ctx->right.buf, ctx->both.buf, 2*ctx->both.len_out);
+		pthread_rwlock_unlock(&ctx->both.rw);
+		rotate_90(ctx->left.buf, ctx->left.len_in);
+		downsample(&ctx->left);
+		memcpy(ctx->left_demod.buf, ctx->left.buf, 2*ctx->left.len_out);
+		demodulate(&ctx->left_demod);
+		if (ctx->dc_filter) {
+			dc_block_filter(&ctx->left_demod);}
 		//if (oversample) {
 		//	downsample(&left);}
 		//fprintf(stderr,"\nUpsample result_len:%d stereo.bl_len:%d :%f\n",left_demod.result_len,stereo.bl_len,(float)stereo.bl_len/(float)left_demod.result_len);
-		arbitrary_upsample(left_demod.result, stereo.buf_left, left_demod.result_len, stereo.bl_len);
-		rotate_m90(right.buf, right.len_in);
-		downsample(&right);
-		memcpy(right_demod.buf, right.buf, 2*right.len_out);
-		demodulate(&right_demod);
-		if (dc_filter) {
-			dc_block_filter(&right_demod);}
+		arbitrary_upsample(ctx->left_demod.result, ctx->stereo.buf_left, ctx->left_demod.result_len, ctx->stereo.bl_len);
+		rotate_m90(ctx->right.buf, ctx->right.len_in);
+		downsample(&ctx->right);
+		memcpy(ctx->right_demod.buf, ctx->right.buf, 2*ctx->right.len_out);
+		demodulate(&ctx->right_demod);
+		if (ctx->dc_filter) {
+			dc_block_filter(&ctx->right_demod);}
 		//if (oversample) {
 		//	downsample(&right);}
-		arbitrary_upsample(right_demod.result, stereo.buf_right, right_demod.result_len, stereo.br_len);
-		pre_output();
-		if(use_internal_aisdecoder){
+		arbitrary_upsample(ctx->right_demod.result, ctx->stereo.buf_right, ctx->right_demod.result_len, ctx->stereo.br_len);
+		pre_output(ctx);
+		if(ctx->use_internal_aisdecoder){
 			// stereo.result -> int_16
 			// stereo.result_len -> number of samples for each channel
-			run_rtlais_decoder(stereo.result,stereo.result_len);
+			run_rtlais_decoder(ctx->stereo.result,ctx->stereo.result_len);
 		}
 		else{
-			output();
+                    fwrite(ctx->stereo.result, 2, ctx->stereo.result_len, ctx->file);
 		}
 	}
-	rtlsdr_cancel_async(dev);
-	free_ais_decoder();
+
+        free_ais_decoder();
 	return 0;
 }
 
-void downsample_init(struct downsample_state *dss)
+static void downsample_init(struct downsample_state *dss)
 /* simple ints should be already set */
 {
 	int i, j;
@@ -492,140 +442,60 @@ void downsample_init(struct downsample_state *dss)
 	pthread_rwlock_init(&dss->rw, NULL);
 }
 
-void demod_init(struct demod_state *ds)
+static void demod_init(struct demod_state *ds)
 {
 	ds->buf = malloc(ds->buf_len * sizeof(int16_t));
 	ds->result = malloc(ds->result_len * sizeof(int16_t));
 }
 
-void stereo_init(struct upsample_stereo *us)
+static void stereo_init(struct upsample_stereo *us)
 {
 	us->buf_left  = malloc(us->bl_len * sizeof(int16_t));
 	us->buf_right = malloc(us->br_len * sizeof(int16_t));
 	us->result    = malloc(us->result_len * sizeof(int16_t));
 }
 
-int main(int argc, char **argv)
+void rtl_ais_default_config(struct rtl_ais_config *config)
 {
-#ifndef WIN32
-	struct sigaction sigact;
-#endif	
-	char *filename = NULL;
-	int r, opt;
-	int i, gain = AUTO_GAIN; /* tenths of a dB */
-	int dev_index = 0;
-	int dev_given = 0;
-	int ppm_error = 0;
-	int rtl_agc=0;
-	int custom_ppm = 0;
-	int left_freq = 161975000;
-	int right_freq = 162025000;
-	int sample_rate = 24000;
-	int output_rate = 48000;
-	int dongle_freq, dongle_rate, delta;
-	int edge = 0;
-/* Aisdecoder */
-	int	show_levels=0;
-	int debug_nmea = 0;
-	char * port=NULL;
-	char * host=NULL;
-	int  use_tcp_listener = 0;
-	int  tcp_keep_ais_time = 15;  // using tcp lister time to keep ais messages in sec.
-	pthread_cond_init(&ready, NULL);
-	pthread_mutex_init(&ready_m, NULL);
+        config->gain = AUTO_GAIN; /* tenths of a dB */
+        config->dev_index = 0;
+        config->dev_given = 0;
+        config->ppm_error = 0;
+        config->rtl_agc=0;
+        config->custom_ppm = 0;
+        config->left_freq = 161975000;
+        config->right_freq = 162025000;
+        config->sample_rate = 24000;
+        config->output_rate = 48000;
 
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLS:?")) != -1)
-	{
-		switch (opt) {
-		case 'l':
-			left_freq = (int)atofs(optarg);
-			break;
-		case 'r':
-			right_freq = (int)atofs(optarg);
-			break;
-		case 's':
-			sample_rate = (int)atofs(optarg);
-			break;
-		case 'o':
-			output_rate = (int)atofs(optarg);
-			break;
-		case 'E':
-			edge = !edge;
-			break;
-		case 'D':
-			dc_filter = !dc_filter;
-			break;
-		case 'O':
-			oversample = !oversample;
-			break;
-		case 'd':
-			dev_index = verbose_device_search(optarg);
-			dev_given = 1;
-			break;
-		case 'g':
-			gain = (int)(atof(optarg) * 10);
-			break;
-		case 'p':
-			ppm_error = atoi(optarg);
-			custom_ppm = 1;
-			break;
-		case 'R':
-			rtl_agc=1;
-			break;
-		case 'A':
-			use_internal_aisdecoder=0;
-			break;
-		case 'P':
-			port=strdup(optarg);
-			break;
-		case 'T':
-			use_tcp_listener=1;
-			break;
-		case 't':
-			tcp_keep_ais_time = atoi(optarg);
-			break;
-		case 'h':
-			host=strdup(optarg);
-			break;
-		case 'L':
-			show_levels=1;
-			break;
-		case 'S':
-			seconds_for_decoder_stats=atoi(optarg);
-			break;
-		case 'n':
-			debug_nmea = 1;
-			break;
-		case '?':
-		default:
-			usage();
-			return 2;
-		}
-	}
+        config->edge = 0;
+        config->use_tcp_listener = 0, config->tcp_keep_ais_time = 15;
 
-	if (argc <= optind) {
-		filename = "-";
-	} else {
-		filename = argv[optind];
-	}
+        /* Aisdecoder */
+        config->show_levels=0;
+        config->debug_nmea = 0;
 
-	if (left_freq > right_freq) {
-		usage();
-		return 2;
-	}
-	if(host==NULL){
-		host=strdup("127.0.0.1");
-	}
-	if(port==NULL){
-		port=strdup("10110");
-	}
-	
-	/* precompute rates */
-	dongle_freq = left_freq/2 + right_freq/2;
-	if (edge) {
-		dongle_freq -= sample_rate/2;}
-	delta = right_freq - left_freq;
-	if (delta > 1.2e6) {
+        config->host=NULL;
+        config->port=NULL;
+
+        config->filename = "-";
+}
+
+struct rtl_ais_context *rtl_ais_start(struct rtl_ais_config *config)
+{
+	if (config->left_freq > config->right_freq)
+		return NULL;
+
+        struct rtl_ais_context *ctx = malloc(sizeof(struct rtl_ais_context));
+        ctx->active = 1;
+
+        /* precompute rates */
+        int dongle_freq, dongle_rate, delta, i;
+        dongle_freq = config->left_freq/2 + config->right_freq/2;
+	if (config->edge) {
+		dongle_freq -= config->sample_rate/2;}
+	delta = config->right_freq - config->left_freq;
+        if (delta > 1.2e6) {
 		fprintf(stderr, "Frequencies may be at most 1.2MHz apart.");
 		exit(1);
 	}
@@ -635,137 +505,105 @@ int main(int argc, char **argv)
 	}
 	i = (int)log2(2.4e6 / delta);
 	dongle_rate = delta * (1<<i);
-	both.rate_in = dongle_rate;
-	both.rate_out = delta * 2;
-	i = (int)log2(both.rate_in/both.rate_out);
-	both.downsample_passes = i;
-	both.downsample = 1 << i;
-	left.rate_in = both.rate_out;
-	i = (int)log2(left.rate_in / sample_rate);
-	left.downsample_passes = i;
-	left.downsample = 1 << i;
-	left.rate_out = left.rate_in / left.downsample;
+	ctx->both.rate_in = dongle_rate;
+	ctx->both.rate_out = delta * 2;
+	i = (int)log2(ctx->both.rate_in/ctx->both.rate_out);
+	ctx->both.downsample_passes = i;
+	ctx->both.downsample = 1 << i;
+	ctx->left.rate_in = ctx->both.rate_out;
+	i = (int)log2(ctx->left.rate_in / config->sample_rate);
+	ctx->left.downsample_passes = i;
+	ctx->left.downsample = 1 << i;
+	ctx->left.rate_out = ctx->left.rate_in / ctx->left.downsample;
 	
-	right.rate_in = left.rate_in;
-	right.rate_out = left.rate_out;
-	right.downsample = left.downsample;
-	right.downsample_passes = left.downsample_passes;
+	ctx->right.rate_in = ctx->left.rate_in;
+	ctx->right.rate_out = ctx->left.rate_out;
+	ctx->right.downsample = ctx->left.downsample;
+	ctx->right.downsample_passes = ctx->left.downsample_passes;
 
-	if (left.rate_out > output_rate) {
+	if (ctx->left.rate_out > config->output_rate) {
 		fprintf(stderr, "Channel bandwidth too high or output bandwidth too low.");
 		exit(1);
 	}
 
-	stereo.rate = output_rate;
-
-	if (edge) {
-		fprintf(stderr, "Edge tuning enabled.\n");
-	} else {
-		fprintf(stderr, "Edge tuning disabled.\n");
-	}
-	if (dc_filter) {
-		fprintf(stderr, "DC filter enabled.\n");
-	} else {
-		fprintf(stderr, "DC filter disabled.\n");
-	}
-	if (rtl_agc) {
-		fprintf(stderr, "RTL AGC enabled.\n");
-	} else {
-		fprintf(stderr, "RTL AGC disabled.\n");
-	}
-	if (use_internal_aisdecoder) {
-		fprintf(stderr, "Internal AIS decoder enabled.\n");
-	} else {
-		fprintf(stderr, "Internal AIS decoder disabled.\n");
-	}
-	fprintf(stderr, "Buffer size: %0.2f mS\n", 1000 * (double)DEFAULT_BUF_LENGTH / (double)dongle_rate);
-	fprintf(stderr, "Downsample factor: %i\n", both.downsample * left.downsample);
-	fprintf(stderr, "Low pass: %i Hz\n", left.rate_out);
-	fprintf(stderr, "Output: %i Hz\n", output_rate);
+        fprintf(stderr, "Buffer size: %0.2f mS\n", 1000 * (double)DEFAULT_BUF_LENGTH / (double)dongle_rate);
+	fprintf(stderr, "Downsample factor: %i\n", ctx->both.downsample * ctx->left.downsample);
+	fprintf(stderr, "Low pass: %i Hz\n", ctx->left.rate_out);
+	fprintf(stderr, "Output: %i Hz\n", config->output_rate);
 
 	/* precompute lengths */
-	both.len_in  = DEFAULT_BUF_LENGTH;
-	both.len_out = both.len_in / both.downsample;
-	left.len_in  = both.len_out;
-	right.len_in = both.len_out;
-	left.len_out = left.len_in / left.downsample;
-	right.len_out = right.len_in / right.downsample;
-	left_demod.buf_len = left.len_out;
-	left_demod.result_len = left_demod.buf_len / 2;
-	right_demod.buf_len = left_demod.buf_len;
-	right_demod.result_len = left_demod.result_len;
+	ctx->both.len_in  = DEFAULT_BUF_LENGTH;
+	ctx->both.len_out = ctx->both.len_in / ctx->both.downsample;
+	ctx->left.len_in  = ctx->both.len_out;
+	ctx->right.len_in = ctx->both.len_out;
+	ctx->left.len_out = ctx->left.len_in / ctx->left.downsample;
+	ctx->right.len_out = ctx->right.len_in / ctx->right.downsample;
+	ctx->left_demod.buf_len = ctx->left.len_out;
+	ctx->left_demod.result_len = ctx->left_demod.buf_len / 2;
+	ctx->right_demod.buf_len = ctx->left_demod.buf_len;
+	ctx->right_demod.result_len = ctx->left_demod.result_len;
 //	stereo.bl_len = (int)((long)(DEFAULT_BUF_LENGTH/2) * (long)output_rate / (long)dongle_rate); -> Doesn't work on Linux
-	stereo.bl_len = (int)((double)(DEFAULT_BUF_LENGTH/2) * (double)output_rate / (double)dongle_rate);
-	stereo.br_len = stereo.bl_len;
-	stereo.result_len = stereo.br_len * 2;
-	stereo.rate = output_rate;
+	ctx->stereo.bl_len = (int)((double)(DEFAULT_BUF_LENGTH/2) * (double)config->output_rate / (double)dongle_rate);
+	ctx->stereo.br_len = ctx->stereo.bl_len;
+	ctx->stereo.result_len = ctx->stereo.br_len * 2;
+	ctx->stereo.rate = config->output_rate;
 
-	if (!dev_given) {
-		dev_index = verbose_device_search("0");
-	}
+	if (!config->dev_given) {
+		config->dev_index = verbose_device_search("0");
+        }
 
-	if (dev_index < 0) {
+	if (config->dev_index < 0) {
 		exit(1);
 	}
 
-	downsample_init(&both);
-	downsample_init(&left);
-	downsample_init(&right);
-	demod_init(&left_demod);
-	demod_init(&right_demod);
-	stereo_init(&stereo);
+	downsample_init(&ctx->both);
+	downsample_init(&ctx->left);
+	downsample_init(&ctx->right);
+	demod_init(&ctx->left_demod);
+	demod_init(&ctx->right_demod);
+	stereo_init(&ctx->stereo);
 
-	r = rtlsdr_open(&dev, (uint32_t)dev_index);
+	int r = rtlsdr_open(&ctx->dev, (uint32_t)config->dev_index);
 	if (r < 0) {
-		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dev_index);
+		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", config->dev_index);
 		exit(1);
 	}
-#ifndef WIN32	
-	sigact.sa_handler = sighandler;
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags = 0;
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGQUIT, &sigact, NULL);
-	sigaction(SIGPIPE, &sigact, NULL);
-#else
-	signal(SIGINT, sighandler);
-	signal(SIGTERM, sighandler);
 
-	#endif
-	if(!use_internal_aisdecoder){
-		if (strcmp(filename, "-") == 0) { /* Write samples to stdout */
-			file = stdout;
+        if(!config->use_internal_aisdecoder){
+		if (strcmp(config->filename, "-") == 0) { /* Write samples to stdout */
+			ctx->file = stdout;
 	#ifdef WIN32		
 			setmode(fileno(stdout), O_BINARY); // Binary mode, avoid text mode
 	#endif		
 			setvbuf(stdout, NULL, _IONBF, 0);
 		} else {
-			file = fopen(filename, "wb");
-			if (!file) {
-				fprintf(stderr, "Failed to open %s\n", filename);
-				exit(1);
+			ctx->file = fopen(config->filename, "wb");
+			if (!ctx->file) {
+                            fprintf(stderr, "Failed to open %s\n", config->filename);
+    exit(1);
 			}
 		}
 	}
 	else{ // Internal AIS decoder
-		int ret=init_ais_decoder(host,port,show_levels,debug_nmea,stereo.bl_len,seconds_for_decoder_stats, use_tcp_listener, tcp_keep_ais_time);
+            int ret=init_ais_decoder(config->host,config->port,config->show_levels,config->debug_nmea,ctx->stereo.bl_len,config->seconds_for_decoder_stats, config->use_tcp_listener, config->tcp_keep_ais_time);
 		if(ret != 0){
 			fprintf(stderr,"Error initializing built-in AIS decoder\n");
-			rtlsdr_cancel_async(dev);
-			rtlsdr_close(dev);
+			rtlsdr_cancel_async(ctx->dev);
+			rtlsdr_close(ctx->dev);
 			exit(1);
 		}
 	}
+        ctx->use_internal_aisdecoder = config->use_internal_aisdecoder;
+
 	/* Set the tuner gain */
-	if (gain == AUTO_GAIN) {
-		verbose_auto_gain(dev);
+	if (config->gain == AUTO_GAIN) {
+		verbose_auto_gain(ctx->dev);
 	} else {
-		gain = nearest_gain(dev, gain);
-		verbose_gain_set(dev, gain);
+		config->gain = nearest_gain(ctx->dev, config->gain);
+		verbose_gain_set(ctx->dev, config->gain);
 	}
-	if(rtl_agc){
-		int r = rtlsdr_set_agc_mode(dev, 1);
+	if(config->rtl_agc){
+		int r = rtlsdr_set_agc_mode(ctx->dev, 1);
 		if(r<0)	{
 			fprintf(stderr,"Error seting RTL AGC mode ON");
 			exit(1);
@@ -774,42 +612,64 @@ int main(int argc, char **argv)
 			fprintf(stderr,"RTL AGC mode ON\n");
 		}
 	}
-	if (!custom_ppm) {
-		verbose_ppm_eeprom(dev, &ppm_error);
+	if (!config->custom_ppm) {
+		verbose_ppm_eeprom(ctx->dev, &config->ppm_error);
 	}
 	
-	verbose_ppm_set(dev, ppm_error);
+	verbose_ppm_set(ctx->dev, config->ppm_error);
 	
 	/* Set the tuner frequency */
-	verbose_set_frequency(dev, dongle_freq);
+	verbose_set_frequency(ctx->dev, config->dongle_freq);
 
 	/* Set the sample rate */
-	verbose_set_sample_rate(dev, dongle_rate);
+	verbose_set_sample_rate(ctx->dev, config->dongle_rate);
 
 	/* Reset endpoint before we start reading from it (mandatory) */
-	verbose_reset_buffer(dev);
+	verbose_reset_buffer(ctx->dev);
 
-	pthread_create(&demod_thread, NULL, demod_thread_fn, (void *)(NULL));
-	rtlsdr_read_async(dev, rtlsdr_callback, (void *)(NULL),
-			      DEFAULT_ASYNC_BUF_NUMBER,
-			      DEFAULT_BUF_LENGTH);
+	pthread_cond_init(&ctx->ready, NULL);
+	pthread_mutex_init(&ctx->ready_m, NULL);
 
-	if (do_exit) {
-		fprintf(stderr, "\nUser cancel, exiting...\n");}
-	else {
-		fprintf(stderr, "\nLibrary error %d, exiting...\n", r);}
-	rtlsdr_cancel_async(dev);
-	safe_cond_signal(&ready, &ready_m);
-	pthread_cond_destroy(&ready);
-	pthread_mutex_destroy(&ready_m);
+        /* create two threads */
+	pthread_create(&ctx->demod_thread, NULL, demod_thread_fn, ctx);
+        pthread_create(&ctx->rtlsdr_thread, NULL, rtlsdr_thread_fn, ctx);
 
-	if (file != stdout) {
-		if(file)
-			fclose(file);
+        return ctx;
+}
+
+int rtl_ais_isactive(struct rtl_ais_context *ctx)
+{
+        return ctx->active;
+}
+
+const char *rtl_ais_next_message(struct rtl_ais_context *ctx)
+{
+        ctx = ctx; //unused for now
+        return aisdecoder_next_message();
+}
+
+void rtl_ais_cleanup(struct rtl_ais_context *ctx)
+{
+	rtlsdr_cancel_async(ctx->dev);
+        ctx->active = 0;
+
+        pthread_join(ctx->demod_thread, NULL);
+        pthread_join(ctx->rtlsdr_thread, NULL);
+
+	if (ctx->file != stdout) {
+		if(ctx->file)
+			fclose(ctx->file);
 	}
 
-	rtlsdr_close(dev);
-	return r >= 0 ? r : -r;
+	rtlsdr_cancel_async(ctx->dev);
+	safe_cond_signal(&ctx->ready, &ctx->ready_m);
+	pthread_cond_destroy(&ctx->ready);
+	pthread_mutex_destroy(&ctx->ready_m);
+
+        rtlsdr_close(ctx->dev);
+
+        free(ctx);
 }
+
 
 // vim: tabstop=8:softtabstop=8:shiftwidth=8:noexpandtab
