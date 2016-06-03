@@ -412,6 +412,7 @@ def push_pixels(args):
     average = [0.0] * width
     tally = 0
     old_y = None
+    height = len(args.times)
     for t, zs in collate_row(x_size):
         y = args.times.index(t)
         if not args.compress:
@@ -548,6 +549,7 @@ def create_labels(args, img):
     max_freq = max(args.freqs)
     delta = max_freq - min_freq
     width = len(args.freqs)
+    height = len(args.times)
     label_base = 9
 
     for i in range(label_base, 0, -1):
@@ -568,6 +570,13 @@ def create_labels(args, img):
         if pixels_per_hit < 10:
             break
 
+    start, stop = args.start_stop
+    duration = stop - start
+    duration = duration.days * 24*60*60 + duration.seconds + 30
+    pixel_height = duration / len(args.times)
+    hours = int(duration / 3600)
+    minutes = int((duration - 3600*hours) / 60)
+
     if args.time_tick:
         label_format = "%H:%M:%S"
         if args.time_tick % (60*60*24) == 0:
@@ -579,24 +588,18 @@ def create_labels(args, img):
         while label_next < start:
             label_next += tick_delta
         last_y = -100
+        full_height = args.pix_height
         for y,t in enumerate(args.times):
             label_time = date_parse(t)
             if label_time < label_next:
                 continue
             if args.compress:
-                y = args.full_height - time_compression(height - y, args.compress)
+                y = full_height - time_compression(height - y, args.compress)
             if y - last_y > 15:
                 shadow_text(draw, 2, y+tape_height, label_next.strftime(label_format), font)
                 last_y = y
             label_next += tick_delta
 
-
-    start, stop = args.start_stop
-    duration = stop - start
-    duration = duration.days * 24*60*60 + duration.seconds + 30
-    pixel_height = duration / len(args.times)
-    hours = int(duration / 3600)
-    minutes = int((duration - 3600*hours) / 60)
     margin = 2
     if args.time_tick:
         margin = 60
