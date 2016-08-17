@@ -471,6 +471,7 @@ void rtl_ais_default_config(struct rtl_ais_config *config)
         config->edge = 0;
         config->use_tcp_listener = 0, config->tcp_keep_ais_time = 15;
 	config->use_internal_aisdecoder=1;
+	config->seconds_for_decoder_stats=0;
         /* Aisdecoder */
         config->show_levels=0;
         config->debug_nmea = 0;
