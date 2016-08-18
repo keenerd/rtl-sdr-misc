@@ -446,6 +446,7 @@ static void demod_init(struct demod_state *ds)
 {
 	ds->buf = malloc(ds->buf_len * sizeof(int16_t));
 	ds->result = malloc(ds->result_len * sizeof(int16_t));
+	ds->dc_avg=0;
 }
 
 static void stereo_init(struct upsample_stereo *us)
@@ -467,7 +468,7 @@ void rtl_ais_default_config(struct rtl_ais_config *config)
         config->right_freq = 162025000;
         config->sample_rate = 24000;
         config->output_rate = 48000;
-
+	config->dc_filter=1;
         config->edge = 0;
         config->use_tcp_listener = 0, config->tcp_keep_ais_time = 15;
 	config->use_internal_aisdecoder=1;
@@ -521,7 +522,7 @@ struct rtl_ais_context *rtl_ais_start(struct rtl_ais_config *config)
 	ctx->right.rate_out = ctx->left.rate_out;
 	ctx->right.downsample = ctx->left.downsample;
 	ctx->right.downsample_passes = ctx->left.downsample_passes;
-
+	ctx->dc_filter=config->dc_filter;
 	if (ctx->left.rate_out > config->output_rate) {
 		fprintf(stderr, "Channel bandwidth too high or output bandwidth too low.");
 		exit(1);
