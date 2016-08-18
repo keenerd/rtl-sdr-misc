@@ -202,16 +202,25 @@ int main(int argc, char **argv)
                 fprintf(stderr, "\nrtl_ais_start failed, exiting...\n");
                 exit(1);
         }
-
-        // loop printing received ais messages to console
-        while(!do_exit && rtl_ais_isactive(ctx)) {
-                const char *str;
-                while((str = rtl_ais_next_message(ctx)))
-                        puts(str);
-
-                usleep(50000);
+        	/* 
+	  aidecoder.c appends the messages to a queue that can be used for a 
+	  routine if rtl_ais is compiled as lib. Here we only loop and dequeue
+	  the messages, and the puts() sentence that print the message is  
+	  commented out. If the -n parameter is used the messages are printed from 
+	  nmea_sentence_received() in aidecoder.c 
+	  */
+	while(!do_exit && rtl_ais_isactive(ctx)) {
+		const char *str;
+		if(config.use_internal_aisdecoder)
+		{
+			// dequeue
+			while((str = rtl_ais_next_message(ctx)))
+			{
+				//puts(str); or code somethig that fits your needs
+			}
+		}
+            usleep(50000);
         }
-
         rtl_ais_cleanup(ctx);
         return 0;
 }
