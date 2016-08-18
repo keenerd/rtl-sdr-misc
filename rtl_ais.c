@@ -654,8 +654,8 @@ void rtl_ais_cleanup(struct rtl_ais_context *ctx)
 	rtlsdr_cancel_async(ctx->dev);
         ctx->active = 0;
 
-        pthread_join(ctx->demod_thread, NULL);
-        pthread_join(ctx->rtlsdr_thread, NULL);
+        pthread_detach(ctx->demod_thread);
+        pthread_detach(ctx->rtlsdr_thread);
 
 	if (ctx->file != stdout) {
 		if(ctx->file)
