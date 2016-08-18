@@ -216,7 +216,7 @@ int main(int argc, char **argv)
 			// dequeue
 			while((str = rtl_ais_next_message(ctx)))
 			{
-				//puts(str); or code somethig that fits your needs
+				//puts(str); or code something that fits your needs
 			}
 		}
             usleep(50000);
