@@ -53,7 +53,7 @@ void usage(void)
 		"\t[-h host (default: 127.0.0.1)]\n"
 		"\t[-P port (default: 10110)]\n"
 		"\t[-T use TCP communication, rtl-ais is tcp server ( -h is ignored)\n"
--		"\t[-t time to keep ais messages in sec, using tcp listener (default: 15)\n"
+		"\t[-t time to keep ais messages in sec, using tcp listener (default: 15)\n"
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
 		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
