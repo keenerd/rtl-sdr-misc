@@ -140,7 +140,9 @@ def duration_parse(s):
 def date_parse(s):
     if '-' not in s:
         return datetime.datetime.fromtimestamp(int(s))
-    return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
+    elif '.' not in s:
+        return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
+    return datetime.datetime.strptime(s, '%Y-%m-%d %H:%M:%S.%f')
 
 def palette_parse(s):
     palettes = {'default': default_palette,
@@ -572,10 +574,11 @@ def create_labels(args, img):
 
     start, stop = args.start_stop
     duration = stop - start
-    duration = duration.days * 24*60*60 + duration.seconds + 30
+    duration = duration.days * 24*60*60 + duration.seconds
     pixel_height = duration / len(args.times)
     hours = int(duration / 3600)
     minutes = int((duration - 3600*hours) / 60)
+    seconds = duration % 60
 
     if args.time_tick:
         label_format = "%H:%M:%S"
@@ -603,9 +606,9 @@ def create_labels(args, img):
     margin = 2
     if args.time_tick:
         margin = 60
-    shadow_text(draw, margin, img.size[1] - 45, 'Duration: %i:%02i' % (hours, minutes), font)
+    shadow_text(draw, margin, img.size[1] - 45, 'Duration: %i:%02i:%02i' % (hours, minutes, seconds), font)
     shadow_text(draw, margin, img.size[1] - 35, 'Range: %.2fMHz - %.2fMHz' % (min_freq/1e6, (max_freq+pixel_bandwidth)/1e6), font)
-    shadow_text(draw, margin, img.size[1] - 25, 'Pixel: %.2fHz x %is' % (pixel_bandwidth, int(round(pixel_height))), font)
+    shadow_text(draw, margin, img.size[1] - 25, 'Pixel: %.2fHz x %.3fs' % (pixel_bandwidth, pixel_height), font)
     shadow_text(draw, margin,  img.size[1] - 15, 'Started: {0}'.format(start), font)
     # bin size
 
