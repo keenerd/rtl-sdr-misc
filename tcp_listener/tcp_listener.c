@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #if defined (__WIN32__)
 	#include <winsock2.h>
@@ -17,6 +18,7 @@
 	#include <netdb.h>
 	#include <sys/socket.h>
 	#include <netinet/in.h>
+    #include <arpa/inet.h>
 #endif
 
 typedef struct t_sockIo {
