@@ -406,7 +406,7 @@ def push_pixels(args):
     "returns PIL img"
     width = len(args.freqs)
     rgb = rgb_fn(args.palette(), args.db_limit[0], args.db_limit[1])
-    img = Image.new("RGB", (width, tape_height + args.pix_height))
+    img = Image.new("RGB", (width, tape_height + args.pix_height + 1))
     pix = img.load()
     x_size = img.size[0]
     average = [0.0] * width
@@ -417,7 +417,7 @@ def push_pixels(args):
         y = args.times.index(t)
         if not args.compress:
             for x in range(len(zs)):
-                pix[x,y+tape_height] = rgb(zs[x])
+                pix[x,y+tape_height+1] = rgb(zs[x])
             continue
         # ugh
         y = args.pix_height - time_compression(height - y, args.compress)
@@ -425,7 +425,7 @@ def push_pixels(args):
             old_y = y
         if old_y != y:
             for x in range(len(average)):
-                pix[x,old_y+tape_height] = rgb(average[x]/tally)
+                pix[x,old_y+tape_height+1] = rgb(average[x]/tally)
             tally = 0
             average = [0.0] * width
         old_y = y
