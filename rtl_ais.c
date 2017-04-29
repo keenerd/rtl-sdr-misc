@@ -154,12 +154,12 @@ static void fifth_order(int16_t *data, int length, int16_t *hist)
 {
 	int i;
 	int16_t a, b, c, d, e, f;
-	a = hist[1];
-	b = hist[2];
-	c = hist[3];
-	d = hist[4];
-	e = hist[5];
-	f = data[0];
+	a = hist[2];
+	b = hist[3];
+	c = hist[4];
+	d = hist[5];
+	e = data[0];
+	f = data[2];
 	/* a downsample should improve resolution, so don't fully shift */
 	data[0] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
 	for (i=4; i<length; i+=4) {
@@ -167,8 +167,8 @@ static void fifth_order(int16_t *data, int length, int16_t *hist)
 		b = d;
 		c = e;
 		d = f;
-		e = data[i-2];
-		f = data[i];
+		e = data[i];
+		f = data[i+2];
 		data[i/2] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
 	}
 	/* archive */
