@@ -217,12 +217,12 @@ def open_raw_data(path):
         raw_data = lambda: gzip_wrap(path)
     return raw_data
 
-def slice_columns(columns, low_freq, high_freq):
+def slice_columns(columns, low_freq, high_freq, line_low, line_high):
     start_col = 0
     stop_col  = len(columns)
-    if low_freq  is not None and low <= low_freq  <= high:
+    if low_freq  is not None and line_low <= low_freq  <= line_high:
         start_col = sum(f<low_freq   for f in columns)
-    if high_freq is not None and low <= high_freq <= high:
+    if high_freq is not None and line_low <= high_freq <= line_high:
         stop_col  = sum(f<=high_freq for f in columns)
     return start_col, stop_col-1
 
@@ -258,7 +258,7 @@ def summarize_pass(args):
             break
         times.add(t)
         columns = list(frange(low, high, step))
-        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq, low, high)
         f_key = (columns[start_col], columns[stop_col], step)
         zs = line[6+start_col:6+stop_col+1]
         if not zs:
@@ -380,7 +380,7 @@ def collate_row(x_size):
         high = int(line[3]) + args.offset_freq
         step = float(line[4])
         columns = list(frange(low, high, step))
-        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
+        start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq, low, high)
         if args.low_freq and columns[stop_col] < args.low_freq:
             continue
         if args.high_freq and columns[start_col] > args.high_freq:
