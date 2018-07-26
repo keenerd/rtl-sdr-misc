@@ -103,7 +103,7 @@ int main(int argc, char **argv)
         config.host = strdup("127.0.0.1");
         config.port = strdup("10110");
         
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATtP:h:nLS:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLS:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
