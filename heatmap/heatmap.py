@@ -67,6 +67,8 @@ def build_parser():
         help='Duration to use, stopping at the end.')
     parser.add_argument('--palette', dest='palette', default='default',
         help='Set Color Palette: default, extended, charolastra, twente')
+    parser.add_argument('--nolabels', dest='nolabels', action="store_true",
+        help='Disable the creation of Freq and Time tick labels')
     return parser
 
 def frange(start, stop, step):
@@ -403,6 +405,10 @@ def collate_row(x_size):
     yield old_t, row
 
 def push_pixels(args):
+    global tape_height, tape_pt
+    if(args.nolabels):
+        tape_height = -1
+        tape_pt = 0
     "returns PIL img"
     width = len(args.freqs)
     rgb = rgb_fn(args.palette(), args.db_limit[0], args.db_limit[1])
@@ -540,6 +546,8 @@ def shadow_text(draw, x, y, s, font, fg_color='white', bg_color='black'):
     draw.text((x, y), s, font=font, fill=fg_color)
 
 def create_labels(args, img):
+    if(args.nolabels):
+        return
     draw = ImageDraw.Draw(img)
     font = ImageFont.load_default()
     pixel_bandwidth = args.pixel_bandwidth
