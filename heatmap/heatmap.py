@@ -66,7 +66,9 @@ def build_parser():
     slicegroup.add_argument('--tail', dest='tail_time', default=None,
         help='Duration to use, stopping at the end.')
     parser.add_argument('--palette', dest='palette', default='default',
-        help='Set Color Palette: default, extended, charolastra, twente')
+        help='Set Color Palette: default, extended, charolastra, twente, custom. (To set custom palette use --rgbxy)')
+    parser.add_argument('--rgbxy', dest='rgbxy', nargs=5, default=None,
+        help='Values: R G B X Y. All values are [0-255]. R G B values correspond to RGB color codes. X sets contrast (color start index). Y sets brightness (color stop index). X value must be less than Y value.')
     parser.add_argument('--nolabels', dest='nolabels', action="store_true",
         help='Disable the creation of Freq and Time tick labels')
     return parser
@@ -149,6 +151,7 @@ def palette_parse(s):
                 'extended': extended_palette,
                 'charolastra': charolastra_palette,
                 'twente': twente_palette,
+                'custom': custom_palette,
                }
     if s not in palettes:
         print('WARNING: %s not a valid palette' % s)
@@ -202,6 +205,13 @@ def prepare_args():
         a,b = args.db_limit
         args.db_limit = (float(a), float(b))
 
+    if args.rgbxy:
+        r,g,b,x,y = args.rgbxy
+        args.rgbxy = (int(r), int(g), int(b), int(x), int(y))
+        if int(x) >= int(y):
+            print("--rbgxy index start X must be < index stop Y")
+            sys.exit(2)
+            
     if args.begin_time and args.tail_time:
         print("Can't combine --begin and --tail")
         sys.exit(2)
@@ -352,6 +362,24 @@ def twente_palette():
     # intentionally blow out the highs
     for i in range(100):
         p.append((255, 255, 255))
+    return p
+
+def custom_palette():
+    if args.rgbxy:
+        r,g,b,x,y = args.rgbxy
+    else:
+        # Default: BRIGHT_YELLOW with Deep Contrast
+        r=255; g=255; b=0; x=15; y=140;    
+    p = []
+    for i in range(x):
+        p.append((0,0,0)) 
+    for i in range(x,y):
+        rp = int(float(r*(i-x))/(float(y-x)))
+        gp = int(float(g*(i-x))/(float(y-x)))
+        bp = int(float(b*(i-x))/(float(y-x)))
+        p.append((rp, gp, bp))
+    for i in range(y,256):
+        p.append((r,g,b))
     return p
 
 def rgb_fn(palette, min_z, max_z):
