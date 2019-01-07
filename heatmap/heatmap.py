@@ -28,6 +28,14 @@ vera_path = os.path.join(sys.path[0], "Vera.ttf")
 tape_height = 25
 tape_pt = 10
 
+''' # uncomment this section for debugging
+#cmd_str = "heatmap.py --help"        
+cmd_str = "heatmap.py --nolabels --palette custom --rgbxy 000:255:255:025:150 test.csv test.png"  
+#cmd_str = "heatmap.py --nolabels --palette custom --rgbxy 255:020:147:010:110 test.csv test.png"       
+print("\n" + cmd_str)
+sys.argv = cmd_str.split()
+'''
+
 if not os.path.isfile(vera_path):
     urlretrieve(vera_url, vera_path)
 
@@ -67,8 +75,8 @@ def build_parser():
         help='Duration to use, stopping at the end.')
     parser.add_argument('--palette', dest='palette', default='default',
         help='Set Color Palette: default, extended, charolastra, twente, custom. (To set custom palette use --rgbxy)')
-    parser.add_argument('--rgbxy', dest='rgbxy', nargs=5, default=None,
-        help='Values: R G B X Y. All values are [0-255]. R G B values correspond to RGB color codes. X sets contrast (color start index). Y sets brightness (color stop index). X value must be less than Y value.')
+    parser.add_argument('--rgbxy', dest='rgbxy', nargs=1, default=None,
+        help='Five decimal values separated by colons [R:G:B:X:Y]. All values are [0-255]. R G B values correspond to RGB color codes. X sets contrast (color start index). Y sets brightness (color stop index). X value must be less than Y value.')
     parser.add_argument('--nolabels', dest='nolabels', action="store_true",
         help='Disable the creation of Freq and Time tick labels')
     return parser
@@ -206,7 +214,7 @@ def prepare_args():
         args.db_limit = (float(a), float(b))
 
     if args.rgbxy:
-        r,g,b,x,y = args.rgbxy
+        r,g,b,x,y = (str(args.rgbxy[0])).split(":")
         args.rgbxy = (int(r), int(g), int(b), int(x), int(y))
         if int(x) >= int(y):
             print("--rbgxy index start X must be < index stop Y")
