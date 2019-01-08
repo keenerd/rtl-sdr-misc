@@ -28,6 +28,14 @@ vera_path = os.path.join(sys.path[0], "Vera.ttf")
 tape_height = 25
 tape_pt = 10
 
+''' # uncomment this section for debugging
+#cmd_str = "heatmap.py --help"        
+cmd_str = "heatmap.py --nolabels --palette custom --rgbxy 000:255:255:025:150 test.csv test.png"  
+#cmd_str = "heatmap.py --nolabels --palette custom --rgbxy 255:020:147:010:110 test.csv test.png"       
+print("\n" + cmd_str)
+sys.argv = cmd_str.split()
+'''
+
 if not os.path.isfile(vera_path):
     urlretrieve(vera_url, vera_path)
 
@@ -66,7 +74,11 @@ def build_parser():
     slicegroup.add_argument('--tail', dest='tail_time', default=None,
         help='Duration to use, stopping at the end.')
     parser.add_argument('--palette', dest='palette', default='default',
-        help='Set Color Palette: default, extended, charolastra, twente')
+        help='Set Color Palette: default, extended, charolastra, twente, custom. (To set custom palette use --rgbxy)')
+    parser.add_argument('--rgbxy', dest='rgbxy', nargs=1, default=None,
+        help='Five decimal values separated by colons [R:G:B:X:Y]. All values are [0-255]. R G B values correspond to RGB color codes. X sets contrast (color start index). Y sets brightness (color stop index). X value must be less than Y value.')
+    parser.add_argument('--nolabels', dest='nolabels', action="store_true",
+        help='Disable the creation of Freq and Time tick labels')
     return parser
 
 def frange(start, stop, step):
@@ -147,6 +159,7 @@ def palette_parse(s):
                 'extended': extended_palette,
                 'charolastra': charolastra_palette,
                 'twente': twente_palette,
+                'custom': custom_palette,
                }
     if s not in palettes:
         print('WARNING: %s not a valid palette' % s)
@@ -200,6 +213,13 @@ def prepare_args():
         a,b = args.db_limit
         args.db_limit = (float(a), float(b))
 
+    if args.rgbxy:
+        r,g,b,x,y = (str(args.rgbxy[0])).split(":")
+        args.rgbxy = (int(r), int(g), int(b), int(x), int(y))
+        if int(x) >= int(y):
+            print("--rbgxy index start X must be < index stop Y")
+            sys.exit(2)
+            
     if args.begin_time and args.tail_time:
         print("Can't combine --begin and --tail")
         sys.exit(2)
@@ -352,6 +372,24 @@ def twente_palette():
         p.append((255, 255, 255))
     return p
 
+def custom_palette():
+    if args.rgbxy:
+        r,g,b,x,y = args.rgbxy
+    else:
+        # Default: BRIGHT_YELLOW with Deep Contrast
+        r=255; g=255; b=0; x=15; y=140;    
+    p = []
+    for i in range(x):
+        p.append((0,0,0)) 
+    for i in range(x,y):
+        rp = int(float(r*(i-x))/(float(y-x)))
+        gp = int(float(g*(i-x))/(float(y-x)))
+        bp = int(float(b*(i-x))/(float(y-x)))
+        p.append((rp, gp, bp))
+    for i in range(y,256):
+        p.append((r,g,b))
+    return p
+
 def rgb_fn(palette, min_z, max_z):
     "palette is a list of tuples, returns a function of z"
     def rgb_inner(z):
@@ -403,6 +441,10 @@ def collate_row(x_size):
     yield old_t, row
 
 def push_pixels(args):
+    global tape_height, tape_pt
+    if(args.nolabels):
+        tape_height = -1
+        tape_pt = 0
     "returns PIL img"
     width = len(args.freqs)
     rgb = rgb_fn(args.palette(), args.db_limit[0], args.db_limit[1])
@@ -540,6 +582,8 @@ def shadow_text(draw, x, y, s, font, fg_color='white', bg_color='black'):
     draw.text((x, y), s, font=font, fill=fg_color)
 
 def create_labels(args, img):
+    if(args.nolabels):
+        return
     draw = ImageDraw.Draw(img)
     font = ImageFont.load_default()
     pixel_bandwidth = args.pixel_bandwidth
