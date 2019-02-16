@@ -481,6 +481,8 @@ void rtl_ais_default_config(struct rtl_ais_config *config)
         config->port=NULL;
 
         config->filename = "-";
+
+        config->add_sample_num = 0;
 }
 
 struct rtl_ais_context *rtl_ais_start(struct rtl_ais_config *config)
@@ -587,7 +589,7 @@ struct rtl_ais_context *rtl_ais_start(struct rtl_ais_config *config)
 		}
 	}
 	else{ // Internal AIS decoder
-            int ret=init_ais_decoder(config->host,config->port,config->show_levels,config->debug_nmea,ctx->stereo.bl_len,config->seconds_for_decoder_stats, config->use_tcp_listener, config->tcp_keep_ais_time);
+            int ret=init_ais_decoder(config->host,config->port,config->show_levels,config->debug_nmea,ctx->stereo.bl_len,config->seconds_for_decoder_stats, config->use_tcp_listener, config->tcp_keep_ais_time, config->add_sample_num);
 		if(ret != 0){
 			fprintf(stderr,"Error initializing built-in AIS decoder\n");
 			rtlsdr_cancel_async(ctx->dev);

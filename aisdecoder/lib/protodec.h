@@ -31,7 +31,7 @@
 
 #define DEMOD_BUFFER_LEN 450
 #define MAX_AIS_PACKET_TYPE 27
-#define NMEABUFFER_LEN 100
+#define NMEABUFFER_LEN 128
 
 struct demod_state_t {
 	char chanid;
@@ -51,15 +51,18 @@ struct demod_state_t {
 	int lostframes;
 	int lostframes2;
 	unsigned char seqnr;
-	
+
+    unsigned long startsample;
+    int add_sample_num;
+
 	struct serial_state_t *serial;
 	
 	char *nmea;
 };
 
-void protodec_initialize(struct demod_state_t *d, struct serial_state_t *serial, char chanid);
+void protodec_initialize(struct demod_state_t *d, struct serial_state_t *serial, char chanid, int add_sample_num);
 void protodec_reset(struct demod_state_t *d);
 void protodec_getdata(int bufferlengde, struct demod_state_t *d);
-void protodec_decode(char *in, int count, struct demod_state_t *d);
+void protodec_decode(char *in, int count, struct demod_state_t *d, unsigned long samplenum);
 
 #endif

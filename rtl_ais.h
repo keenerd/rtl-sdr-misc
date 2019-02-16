@@ -31,6 +31,8 @@ struct rtl_ais_config
     /* Aisdecoder */
     int	show_levels, debug_nmea;
     char *port, *host, *filename;
+
+    int add_sample_num;
 };
 
 struct rtl_ais_context;

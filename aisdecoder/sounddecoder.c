@@ -45,15 +45,15 @@ static void readBuffers();
 static time_t tprev=0;
 static int time_print_stats=0;
 
-int initSoundDecoder(int buf_len,int _time_print_stats) 
+int initSoundDecoder(int buf_len,int _time_print_stats, int add_sample_num) 
 {
 	sound_channels=SOUND_CHANNELS_STEREO;
 	channels = sound_channels == SOUND_CHANNELS_MONO ? 1 : 2;
 	time_print_stats=_time_print_stats;
 	tprev=time(NULL); // for decoder statistics
     buffer = (short *) hmalloc(channels*sizeof(short)*buf_len);
-    rx_a = init_receiver('A', 2, 0);
-    rx_b = init_receiver('B', 2, 1);
+    rx_a = init_receiver('A', 2, 0, add_sample_num);
+    rx_b = init_receiver('B', 2, 1, add_sample_num);
     return 1;
 }
 

@@ -26,7 +26,7 @@ typedef enum {
 } Sound_Driver;
 
 extern char errorSoundDecoder[];
-int initSoundDecoder(int buf_len,int _time_print_stats);
+int initSoundDecoder(int buf_len,int _time_print_stats, int add_sample_num);
 void runSoundDecoder(int *stop);
 void freeSoundDecoder(void);
 void run_mem_decoder(short * buf, int len,int max_buf_len);
