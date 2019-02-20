@@ -211,13 +211,14 @@ void protodec_generate_nmea(struct demod_state_t *d, int bufferlen, int fillbits
         nmeachk = d->nmea[m++];
         while (d->nmea[m] != '*') nmeachk ^= d->nmea[m++];
 
+        int inc;
         if (d->add_sample_num){
-            sprintf(&d->nmea[k + 3], "%02X,%lu\r\n", nmeachk, d->startsample);
+            inc = sprintf(&d->nmea[k + 3], "%02X,%lu\r\n", nmeachk, d->startsample);
         }else{
-            sprintf(&d->nmea[k + 3], "%02X\r\n", nmeachk);
+            inc = sprintf(&d->nmea[k + 3], "%02X\r\n", nmeachk);
         }
         if (on_nmea_sentence_received != NULL)
-            on_nmea_sentence_received(d->nmea, k+7, sentences, sentencenum);
+            on_nmea_sentence_received(d->nmea, k+3+inc, sentences, sentencenum);
     } while (sentencenum < sentences);
 }
 
