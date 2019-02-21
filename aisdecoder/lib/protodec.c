@@ -34,7 +34,7 @@ decoder_on_nmea_sentence_received on_nmea_sentence_received=NULL;
 #include <dmalloc.h>
 #endif
 
-void protodec_initialize(struct demod_state_t *d, struct serial_state_t *serial, char chanid)
+void protodec_initialize(struct demod_state_t *d, struct serial_state_t *serial, char chanid, int add_sample_num)
 {
 	memset(d, 0, sizeof(struct demod_state_t));
 
@@ -48,6 +48,7 @@ void protodec_initialize(struct demod_state_t *d, struct serial_state_t *serial,
 	protodec_reset(d);
 	
 	d->seqnr = 0;
+    d->add_sample_num = add_sample_num;
 	
     d->buffer = hmalloc(DEMOD_BUFFER_LEN);
     d->rbuffer = hmalloc(DEMOD_BUFFER_LEN);
@@ -210,9 +211,14 @@ void protodec_generate_nmea(struct demod_state_t *d, int bufferlen, int fillbits
         nmeachk = d->nmea[m++];
         while (d->nmea[m] != '*') nmeachk ^= d->nmea[m++];
 
-        sprintf(&d->nmea[k + 3], "%02X\r\n", nmeachk);
+        int inc;
+        if (d->add_sample_num){
+            inc = sprintf(&d->nmea[k + 3], "%02X,%lu\r\n", nmeachk, d->startsample);
+        }else{
+            inc = sprintf(&d->nmea[k + 3], "%02X\r\n", nmeachk);
+        }
         if (on_nmea_sentence_received != NULL)
-            on_nmea_sentence_received(d->nmea, k+7, sentences, sentencenum);
+            on_nmea_sentence_received(d->nmea, k+3+inc, sentences, sentencenum);
     } while (sentencenum < sentences);
 }
 
@@ -245,7 +251,7 @@ void protodec_getdata(int bufferlen, struct demod_state_t *d)
 		return; // unsupported packet type
 }
 
-void protodec_decode(char *in, int count, struct demod_state_t *d)
+void protodec_decode(char *in, int count, struct demod_state_t *d, unsigned long samplenum)
 {
 	int i = 0;
 	int bufferlength, correct;
@@ -330,6 +336,7 @@ void protodec_decode(char *in, int count, struct demod_state_t *d)
 			if (d->nstartsign >= 7) {
 				if (in[i] == 0) {
 					d->state = ST_DATA;
+                    d->startsample = samplenum;
 					d->nstartsign = 0;
 					d->antallenner = 0;
 					memset(d->buffer, 0, DEMOD_BUFFER_LEN);

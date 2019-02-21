@@ -55,6 +55,7 @@ void usage(void)
 		"\t[-T use TCP communication, rtl-ais is tcp server ( -h is ignored)\n"
 		"\t[-t time to keep ais messages in sec, using tcp listener (default: 15)\n"
 		"\t[-n log NMEA sentences to console (stderr) (default off)]\n"
+		"\t[-I add sample index to NMEA messages (default off)]\n"
 		"\t[-L log sound levels to console (stderr) (default off)]\n\n"
 		"\t[-S seconds_for_decoder_stats (default 0=off)]\n\n"
 		"\tWhen the built-in AIS decoder is disabled the samples are sent to\n"
@@ -103,7 +104,7 @@ int main(int argc, char **argv)
         config.host = strdup("127.0.0.1");
         config.port = strdup("10110");
         
-	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATt:P:h:nLS:?")) != -1)
+	while ((opt = getopt(argc, argv, "l:r:s:o:EODd:g:p:RATIt:P:h:nLS:?")) != -1)
 	{
 		switch (opt) {
 		case 'l':
@@ -144,6 +145,9 @@ int main(int argc, char **argv)
 		case 'A':
 			config.use_internal_aisdecoder=0;
 			break;
+        case 'I':
+            config.add_sample_num = 1;
+            break;
 		case 'P':
 			config.port=strdup(optarg);
 			break;
