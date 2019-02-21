@@ -158,9 +158,11 @@ void protodec_generate_nmea(struct demod_state_t *d, int bufferlen, int fillbits
 {
 	int senlen;
 	int pos;
-    int k, offset;
+        int k, offset;
 	int m;
-    unsigned char sentences, sentencenum, nmeachk, letter;
+        int inc;
+
+        unsigned char sentences, sentencenum, nmeachk, letter;
 	
 	//6bits to nmea-ascii. One sentence len max 82char
 	//inc. head + tail.This makes inside datamax 62char multipart, 62 single
@@ -211,7 +213,6 @@ void protodec_generate_nmea(struct demod_state_t *d, int bufferlen, int fillbits
         nmeachk = d->nmea[m++];
         while (d->nmea[m] != '*') nmeachk ^= d->nmea[m++];
 
-        int inc;
         if (d->add_sample_num){
             inc = sprintf(&d->nmea[k + 3], "%02X,%lu\r\n", nmeachk, d->startsample);
         }else{
