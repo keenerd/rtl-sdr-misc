@@ -216,7 +216,9 @@ int main(int argc, char **argv)
 	  nmea_sentence_received() in aidecoder.c 
 	  */
 	while(!do_exit && rtl_ais_isactive(ctx)) {
+	#if _POSIX_C_SOURCE >= 199309L // nanosleep available()
 		struct timespec five = { 0, 50 * 1000 * 1000};
+	#endif
 		const char *str;
 		if(config.use_internal_aisdecoder)
 		{
@@ -226,7 +228,11 @@ int main(int argc, char **argv)
 				//puts(str); or code something that fits your needs
 			}
 		}
+	#if _POSIX_C_SOURCE >= 199309L // nanosleep available()
 		nanosleep(&five, NULL);
+	#else
+		usleep(50000);
+	#endif
         }
         rtl_ais_cleanup(ctx);
         return 0;
