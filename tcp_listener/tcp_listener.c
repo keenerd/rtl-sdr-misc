@@ -87,7 +87,7 @@ int initTcpSocket(const char *portnumber, int debug_nmea, int tcp_keep_ais_time)
 		fprintf(stderr, "Failed to create socket! error %d\n", errno);
 		return 0;
 	}
-	bzero((char *) &serv_addr, sizeof(serv_addr));
+	memset((char *) &serv_addr, 0, sizeof(serv_addr));
 	portno = atoi(portnumber);
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
