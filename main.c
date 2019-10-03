@@ -216,6 +216,7 @@ int main(int argc, char **argv)
 	  nmea_sentence_received() in aidecoder.c 
 	  */
 	while(!do_exit && rtl_ais_isactive(ctx)) {
+		struct timespec five = { 0, 50 * 1000 * 1000};
 		const char *str;
 		if(config.use_internal_aisdecoder)
 		{
@@ -225,7 +226,7 @@ int main(int argc, char **argv)
 				//puts(str); or code something that fits your needs
 			}
 		}
-            usleep(50000);
+		nanosleep(&five, NULL);
         }
         rtl_ais_cleanup(ctx);
         return 0;
