@@ -47,6 +47,7 @@ pthread_t tcp_listener_thread;
 
 typedef struct t_ais_mess {
 	char message[100];  // max on nmea message is 83 char's
+	char *plmess;
 	int length;
 	struct timeval timestamp;
 	struct t_ais_mess *next;
@@ -181,7 +182,10 @@ void *handle_remote_close(void *arg) {
 	// send saved ais_messages to new socket
 	ais_temp = ais_head;
 	while (ais_temp != NULL) {
-		rc = send(t->sock, ais_temp->message, ais_temp->length, 0);
+		if (ais_temp->plmess != NULL)
+			rc = send(t->sock, ais_temp->plmess, ais_temp->length, 0);
+		else
+			rc = send(t->sock, ais_temp->message, ais_temp->length, 0);
 		if( _debug)
 			fprintf( stdout, "%d: Send to %s, <%.*s>, rc=%d\n",ais_temp->timestamp.tv_sec, t->from_ip, ais_temp->length, ais_temp->message, rc);
 		ais_temp = ais_temp->next;
@@ -292,7 +296,18 @@ int add_nmea_ais_message(const char * mess, unsigned int length) {
 
 	// allocate an add the new message
 	new_node = (P_AIS_MESS) malloc(sizeof(AIS_MESS));
-	strncpy(new_node->message, mess, length);
+	if (length>=sizeof(new_node->message)) {
+		new_node->plmess = malloc(length);
+		if(new_node->plmess == NULL) {
+			free(new_node);
+			return -1;
+		} 
+		strncpy(new_node->plmess, mess, length);
+		new_node->message[0] = 0; // Just in case
+	} else {
+		new_node->plmess = NULL;
+		strncpy(new_node->message, mess, length);
+	}
 	new_node->length = length;
 	gettimeofday(&new_node->timestamp, NULL);
 
@@ -332,6 +347,8 @@ void delete_ais_node(P_AIS_MESS p) {
 		if (ais_end == temp)
 			ais_end = prev;
 	}
+	if (p->plmess != NULL)
+		free(p->plmess);
 	free(p);
 }
 
