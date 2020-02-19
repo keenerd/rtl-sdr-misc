@@ -119,7 +119,6 @@ void closeTcpSocket() {
 	sleep(3);
 	close(sockfd);
 #endif
-	return 0;
 }
 
 // ------------------------------------------------------------
@@ -160,6 +159,7 @@ static void *tcp_listener_fn(void *arg) {
 #else		
 		close(t->sock);
 #endif		
+	return 0;
 	
 	
 }
