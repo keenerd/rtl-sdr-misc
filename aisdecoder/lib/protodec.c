@@ -156,14 +156,14 @@ unsigned long protodec_henten(int from, int size, unsigned char *frame)
 
 void protodec_generate_nmea(struct demod_state_t *d, int bufferlen, int fillbits, time_t received_t)
 {
-	int senlen;
-	int pos;
-        int k, offset;
-	int m;
-        int inc;
+    int senlen;
+    int pos;
+    int k, offset;
+    int m;
+    int inc;
 
-        unsigned char sentences, sentencenum, nmeachk, letter;
-	
+    unsigned char sentences, sentencenum, nmeachk, letter;
+    received_t=received_t; // not used here, avoid compiling warnings
 	//6bits to nmea-ascii. One sentence len max 82char
 	//inc. head + tail.This makes inside datamax 62char multipart, 62 single
     senlen = 56;		//this is normally not needed.For testing only. May be fixed number
