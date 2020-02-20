@@ -71,7 +71,7 @@ RTLSDR_LIB=$(RTLSDR_PATH)/build/src/
 -------  
 INSTALL
 -------
-On Linux, copy the rtl_ais file to a binary path, i.e.  /usr/bin, or /usr/local/bin. 
+On Linux, sudo make install
 On Windows, put the librtlsdr.dll and libusb-1.0.dll files in the same directory
 with rtl_ais.exe. You'll need the zadig driver installed too.
 

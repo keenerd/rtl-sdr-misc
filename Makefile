@@ -2,6 +2,9 @@ CFLAGS?=-O2 -g -Wall -W
 CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib -I./tcp_listener
 LDFLAGS+=-lpthread -lm
 
+ifeq ($(PREFIX),)
+    PREFIX := /usr/local
+endif
 UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
 #Conditional for Linux
@@ -60,3 +63,7 @@ $(EXECUTABLE): $(OBJECTS)
 
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLE) $(EXECUTABLE).exe
+
+install:
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 755 $(DESTDIR)$(EXECUTABLE) "$(PREFIX)/bin/"
