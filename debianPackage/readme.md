@@ -8,6 +8,3 @@ Step 2, copy the compiled binary into the package location (implying rtl-ais hav
 
 Step 3, build the package : 
 ```dpkg-deb --build ./ rtl_ais_0.3-1_$(arch).deb```
-
-Step 4, renaming package : 
-```dpkg-deb --build```
