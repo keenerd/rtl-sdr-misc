@@ -119,7 +119,6 @@ void closeTcpSocket() {
 	sleep(3);
 	close(sockfd);
 #endif
-
 }
 
 // ------------------------------------------------------------
@@ -127,6 +126,7 @@ void closeTcpSocket() {
 // ------------------------------------------------------------
 static void *tcp_listener_fn(void *arg) {
 	int rc;
+	arg=arg; // not used, avoid compiling warnings
 	P_TCP_SOCK t;
 
 	fprintf(stderr, "Tcp listen port %d\nAis message timeout with %d\n", portno, _tcp_keep_ais_time);
@@ -159,6 +159,7 @@ static void *tcp_listener_fn(void *arg) {
 #else		
 		close(t->sock);
 #endif		
+	return 0;
 	
 	
 }
@@ -174,8 +175,7 @@ void *handle_remote_close(void *arg) {
 	struct timeval timeout;
 	timeout.tv_sec = 10;
 	timeout.tv_usec = 0;
-	setsockopt(t->sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-
+	setsockopt(t->sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
 	// get rid of old messages before send
 	remove_old_ais_messages();
 
@@ -187,13 +187,13 @@ void *handle_remote_close(void *arg) {
 		else
 			rc = send(t->sock, ais_temp->message, ais_temp->length, 0);
 		if( _debug)
-			fprintf( stdout, "%d: Send to %s, <%.*s>, rc=%d\n",ais_temp->timestamp.tv_sec, t->from_ip, ais_temp->length, ais_temp->message, rc);
+			fprintf( stdout, "%ld: Send to %s, <%.*s>, rc=%d\n",ais_temp->timestamp.tv_sec, t->from_ip, ais_temp->length, ais_temp->message, rc);
 		ais_temp = ais_temp->next;
 	}
 
 	while(1){
 
-		rc = recv(t->sock, buff, 99, 0);
+		rc = recv(t->sock, (char *)buff, 99, 0);
 		if( rc < 0) {
 
 			// check timeout
@@ -221,6 +221,7 @@ void *handle_remote_close(void *arg) {
 		close(t->sock);
 #endif		
 	delete_node(t);
+	return 0;
 }
 
 
@@ -241,7 +242,7 @@ int accept_c(P_TCP_SOCK p_tcp_sock) {
 		return error_category(errno);
 	}
 
-	if (setsockopt(p_tcp_sock->sock, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen) < 0) {
+	if (setsockopt(p_tcp_sock->sock, SOL_SOCKET, SO_KEEPALIVE,(char *) &optval, optlen) < 0) {
 		fprintf(stderr, "Failed to set option keepalive!, error = %d\n", errno);
 		return error_category(errno);
 	}
@@ -417,6 +418,7 @@ void delete_node(P_TCP_SOCK p) {
 // ------------------------------------------------------------------
 int error_category(int rc) {
 #if defined (__WIN32__)
+	rc=rc; 	    // Not used, avoid compiling warnings
 	return -1; // Just work as sis
 #else
 	switch (rc) {
