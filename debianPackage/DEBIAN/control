@@ -2,10 +2,10 @@ Package: rtl-ais
 Version: 0.3
 Section: custom
 Priority: optional
-Architecture: any
+Architecture: all
 Essential: no
 Installed-Size: 1024
 Maintainer: "dgiardini"
-Uploaders: "Frederic Guilbault"
+Uploaders: "Frederic Guilbault <2@0464.ca>"
 Homepage: https://github.com/dgiardini/rtl-ais
 Description: AIS tuner and generic dual-frequency FM demodulator

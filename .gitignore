@@ -1,4 +1,4 @@
 *.o
 rtl_ais
 debianPackage/usr
-debianPackage/DEBIAN/*.deb
+debianPackage/*.deb
