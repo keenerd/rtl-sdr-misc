@@ -65,5 +65,6 @@ clean:
 	rm -f $(OBJECTS) $(EXECUTABLE) $(EXECUTABLE).exe
 
 install:
-	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m 755 $(DESTDIR)$(EXECUTABLE) "$(PREFIX)/bin/"
+	install -d -m 755 $(DESTDIR)/$(PREFIX)/bin
+	install -m 755 $(EXECUTABLE) "$(DESTDIR)/$(PREFIX)/bin/"
+
