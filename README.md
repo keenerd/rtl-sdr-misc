@@ -1,11 +1,18 @@
-----------------------------------------------------------------------
-rtl_ais, a simple AIS tuner  and generic dual-frequency FM demodulator
-OS: Linux-Windows-OSX.
-----------------------------------------------------------------------
+`rtl-ais`, a simple AIS tuner and generic dual-frequency FM demodulator
+-----------------------------------------------------------------------
 
+rtl-ais provides the `rtl_ais` command, which decodes AIS data from Software Defined Radio (SDR) and outputs `AIVDM` / `AIVDO` sentences.
+
+| OS support |   |
+|------------|---|
+| Linux      | ✅ |
+| Windows    | ✅ |
+| OSX        | ✅ |
+
+
+Command Line
 ------------
-COMMAND LINE
-------------
+```
 Use: rtl_ais [options] [outputfile]
         [-l left_frequency (default: 161.975M)]
         [-r right_frequency (default: 162.025M)]
@@ -42,56 +49,75 @@ Use: rtl_ais [options] [outputfile]
         rtl_ais -n
         Tune two fm stations and play one on each channel:
         rtl_ais -l233.15M  -r233.20M -A  | play -r48k -traw -es -b16 -c2 -V1 -
+```
 
+
+Compiling
 ---------
-COMPILING
---------- 
 Make sure you have the following dependencies:
   - librtlsdr
   - libusb
   - libpthread
 
-Get the source code:
-    git clone https://github.com/dgiardini/rtl-ais 
-Change to the source dir  
-    cd rtl-ais
-then type 
-    make
-
-Test running
-    ./rtl_ais
+```console
+$ # Get the source code:
+$ git clone https://github.com/dgiardini/rtl-ais
+$ # Change to the source dir
+$ cd rtl-ais
+$ make
+$ # Test running the command
+$ ./rtl_ais
+```
 
 For compiling a MS Windows executable you will need a working MSYS/MinGW environment.
-Edit the Makefile, and modify these lines:
+Edit the `Makefile`, and modify these lines:
 
+```Makefile
 #### point this to your correct path ###
 RTLSDR_PATH="/c/tmp/rtl-sdr/"
 RTLSDR_LIB=$(RTLSDR_PATH)/build/src/
 ########################################
--------  
-INSTALL
+```
+
+
+Installing
+----------
+* On Linux, `sudo make install`
+* On Windows, put the `librtlsdr.dll` and `libusb-1.0.dll` files in the same directory
+with `rtl_ais.exe`. You'll need the `zadig` driver installed too.
+
+
+Running
 -------
-On Linux, sudo make install
-On Windows, put the librtlsdr.dll and libusb-1.0.dll files in the same directory
-with rtl_ais.exe. You'll need the zadig driver installed too.
 
+rtl-ais uses software defined radio (SDR).  The specific
+hardware we use for this is a DVB-T dongle. A good starting point is:
+https://www.rtl-sdr.com/about-rtl-sdr
+
+You'll need also an antenna, and be located near (some miles)  the
+passing vessels.
+
+You'll also need to do some procedure to get the tunning error for the
+specfic dongle you have (aka ppm error), and pass that number as parameter
+of rtl-ais.
+
+
+Testing
+-------
+
+TODO: something like
+https://github.com/freerange/ais-on-sdr/wiki/Testing-AISDecoder#with-an-audio-file
+
+
+Known Issues
 ------------
-KNOWN ISSUES
-------------
-The [-p ppm error] parameter is essential for rtl_ais to work.
-The ppm error is the frequency deviation in parts per million from the desired tuning 
-frequency, and the real tuned frequency due to the crystal oscillator deviation. This 
+* The `[-p ppm error]` parameter is essential for rtl_ais to work.
+  * The ppm error is the frequency deviation in parts per million from the desired tuning
+frequency, and the real tuned frequency due to the crystal oscillator deviation. This
 figure is different for each device, it's very important to know  this value and pass this parameter to rtl_ais.
-
-Some instructions for get the ppm error are here:
-
-http://www.rtl-sdr.com/how-to-calibrate-rtl-sdr-using-kalibrate-rtl-on-linux
-
-and here (using SDR#):
-
-http://www.atouk.com/SDRSharpQuickStart.html#adjusting
-
-and here (using HDSDR ad AIS traffic)
-
-http://www.cruisersforum.com/forums/f134/new-rtlsdr-plugin-102929-11.html#post1844966
-
+  * Some instructions for get the ppm error are here:
+    http://www.rtl-sdr.com/how-to-calibrate-rtl-sdr-using-kalibrate-rtl-on-linux
+  * and here (using SDR#):
+    http://www.atouk.com/SDRSharpQuickStart.html#adjusting
+  * and here (using HDSDR ad AIS traffic)
+    http://www.cruisersforum.com/forums/f134/new-rtlsdr-plugin-102929-11.html#post1844966
