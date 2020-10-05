@@ -1,7 +1,7 @@
 Source: rtl-ais
 Maintainer: dgiardini <unknown@unknown.unknown>
 Uploaders: Frederic Guilbault <2@0464.ca>
-Section: custom
+Section: comm
 Priority: optional
 Standards-Version: 4.5.0
 Build-Depends: debhelper (>=9),librtlsdr-dev
