@@ -1,11 +1,12 @@
+# Can't use buster-slim because it needs librtlsdr-dev 0.5.3
+# See https://github.com/dgiardini/rtl-ais/issues/32
 FROM debian:stretch-slim
 
-ENV VER=${VER:-master} \
-    REPO=https://github.com/dgiardini/rtl-ais.git \
-    APP=/usr/src/app \
-    GIT_SSL_NO_VERIFY=true
+ENV APP=/usr/src/app
 
 WORKDIR $APP
+
+COPY . $APP
 
 RUN apt-get update && apt-get install -y \
 git \
@@ -15,8 +16,8 @@ make \
 build-essential \
 pkg-config \
 libusb-1.0-0-dev \
-&&  git clone -b $VER $REPO $APP \
-&&  make
+&& make \ 
+&& rm -rf /var/lib/apt/lists/*
 
 CMD $APP/rtl_ais -n
 
