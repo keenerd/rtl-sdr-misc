@@ -102,6 +102,38 @@ specfic dongle you have (aka ppm error), and pass that number as parameter
 of rtl-ais.
 
 
+Docker Container
+----------------
+Run rtl-ais in a docker container. No dependencies to install. Total container size is approximately 75 MB.
+
+Two options: Either download and run a pre-built docker container, or you can built the container locally.
+
+ 1. To test things out: `docker run -it --rm --device=/dev/bus/usb ghcr.io/bklofas/rtl-ais:latest`
+    * This image will run by default `./rtl_ais -n`, showing the received packets on STDOUT.
+    * Make sure at least one RTL-SDR dongle is connected.
+    * Startup messages and decoded packets will display in the terminal. Ctrl-C to kill.
+
+ 1. For a more permanent setup, run the container in the background and add any options you want: `docker run -d --name rtl-ais --restart=unless-stopped --log-driver=local --network=host --device=/dev/bus/usb ghcr.io/bklofas/rtl-ais:latest ./rtl_ais -n -d 00000002 -h 127.0.0.1 -P 10110`
+    * -d: Start this container in daemon/background mode.
+    * --name: Name this anything you want.
+    * --restart: Automatically restart the container if something happens (reboot, USB problem), unless you have manually stopped the container (with `docker stop rtl-ais`).
+    * --log-driver: By default, docker uses the json log driver which will fill up your harddrive, depending on how busy your station is. local log driver defaults to 100MB of saved logs, and automatically rotates them.
+    * --network: Allows the container to talk to the internet, if you are sending the packets to an online service.
+    * --device: Allows the container to talk to the USB bus to access the RTL-SDR dongle.
+    * ./rtl_ais: Same command-line options as above.
+    * View the startup messages and decoded packets with `docker logs --follow rtl-ais`
+
+Building the container:
+
+ * `git clone https://github.com/bklofas/rtl-ais.git` the repository, then from the folder `docker build -t rtl-ais .`
+ *  Or, build the container without cloning the repository: `docker build https://github.com/bklofas/rtl-ais.git`
+
+Other tips and tricks:
+
+ * If you have the `-n` flag, view the decoded AIS packets in real-time with `docker logs --follow rtl-ais`
+ * If you are only sending packets to one internet service (such as martinetraffic.com), you can use the `-h` and `-P` options that they provide.
+
+
 Testing
 -------
 
