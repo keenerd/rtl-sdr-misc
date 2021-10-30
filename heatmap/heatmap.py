@@ -596,7 +596,7 @@ def create_labels(args, img):
             if args.compress:
                 y = full_height - time_compression(height - y, args.compress)
             if y - last_y > 15:
-                shadow_text(draw, 2, y+tape_height, label_next.strftime(label_format), font)
+                shadow_text(draw, 2, y+tape_height, label_time.strftime(label_format), font)
                 last_y = y
             label_next += tick_delta
 
