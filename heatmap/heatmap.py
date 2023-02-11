@@ -180,7 +180,6 @@ def prepare_args():
             sys.argv[i] = ' ' + arg
     parser = build_parser()
     args = parser.parse_args()
-
     reparse(args, 'low_freq', freq_parse)
     reparse(args, 'high_freq', freq_parse)
     reparse(args, 'offset_freq', freq_parse)
@@ -195,11 +194,9 @@ def prepare_args():
     reparse(args, 'head_time', lambda s: datetime.timedelta(seconds=s))
     reparse(args, 'tail_time', lambda s: datetime.timedelta(seconds=s))
     args.compress = float(args.compress)
-
     if args.db_limit:
         a,b = args.db_limit
         args.db_limit = (float(a), float(b))
-
     if args.begin_time and args.tail_time:
         print("Can't combine --begin and --tail")
         sys.exit(2)
@@ -235,19 +232,17 @@ def summarize_pass(args):
     min_z = 0
     max_z = -100
     start, stop = None, None
-
     for line in raw_data():
         line = [s.strip() for s in line.strip().split(',')]
         #line = [line[0], line[1]] + [float(s) for s in line[2:] if s]
         line = [s for s in line if s]
 
-        low  = int(line[2]) + args.offset_freq
-        high = int(line[3]) + args.offset_freq
+        low  = int(float(line[2])) + args.offset_freq
+        high = int(float(line[3])) + args.offset_freq
         step = float(line[4])
         t = line[0] + ' ' + line[1]
         if '-' not in line[0]:
             t = line[0]
-
         if args.low_freq  is not None and high < args.low_freq:
             continue
         if args.high_freq is not None and args.high_freq < low:
@@ -269,36 +264,29 @@ def summarize_pass(args):
             #freqs.add(f_key[1])  # high
             #labels.add(f_key[0])  # low
             f_cache.add(f_key)
-
         if not args.db_limit:
             zs = floatify(zs)
             min_z = min(min_z, min(zs))
             max_z = max(max_z, max(zs))
-
         if start is None:
             start = date_parse(t)
         stop = date_parse(t)
         if args.head_time is not None and args.end_time is None:
             args.end_time = start + args.head_time
-
     if not args.db_limit:
         args.db_limit = (min_z, max_z)
-
     if args.tail_time is not None:
         times = [t for t in times if date_parse(t) >= (stop - args.tail_time)]
         start = date_parse(min(times))
-
     freqs = list(sorted(list(freqs)))
     times = list(sorted(list(times)))
     labels = list(sorted(list(labels)))
-
     if len(labels) == 1:
         delta = (max(freqs) - min(freqs)) / (len(freqs) / 500.0)
         delta = round(delta / 10**int(math.log10(delta))) * 10**int(math.log10(delta))
         delta = int(delta)
         lower = int(math.ceil(min(freqs) / delta) * delta)
         labels = list(range(lower, int(max(freqs)), delta))
-
     height = len(times)
     pix_height = height
     if args.compress:
@@ -310,7 +298,6 @@ def summarize_pass(args):
         if args.compress:
             args.compress = -1 / args.compress
             pix_height = time_compression(height, args.compress)
-
     print("x: %i, y: %i, z: (%f, %f)" % (len(freqs), pix_height, args.db_limit[0], args.db_limit[1]))
     args.freqs = freqs
     args.times = times
@@ -376,8 +363,8 @@ def collate_row(x_size):
             continue  # happens with live files and time cropping
         if old_t is None:
             old_t = t
-        low = int(line[2]) + args.offset_freq
-        high = int(line[3]) + args.offset_freq
+        low = int(float(line[2])) + args.offset_freq
+        high = int(float(line[3])) + args.offset_freq
         step = float(line[4])
         columns = list(frange(low, high, step))
         start_col, stop_col = slice_columns(columns, args.low_freq, args.high_freq)
@@ -543,7 +530,6 @@ def create_labels(args, img):
     draw = ImageDraw.Draw(img)
     font = ImageFont.load_default()
     pixel_bandwidth = args.pixel_bandwidth
-
     draw.rectangle([0,0,img.size[0],tape_height], fill='yellow')
     min_freq = min(args.freqs)
     max_freq = max(args.freqs)
@@ -551,7 +537,6 @@ def create_labels(args, img):
     width = len(args.freqs)
     height = len(args.times)
     label_base = 9
-
     for i in range(label_base, 0, -1):
         interval = int(10**i)
         low_f = (min_freq // interval) * interval
@@ -561,7 +546,6 @@ def create_labels(args, img):
             label_base = i
             break
     label_base = 10**label_base
-
     for scale,y in [(1,10), (5,15), (10,19), (50,22), (100,24), (500, 25)]:
         hits = tape_lines(draw, args.freqs, label_base/scale, y, tape_height)
         pixels_per_hit = width / hits
@@ -569,14 +553,12 @@ def create_labels(args, img):
             tape_text(img, args.freqs, label_base/scale, y-tape_pt)
         if pixels_per_hit < 10:
             break
-
     start, stop = args.start_stop
     duration = stop - start
     duration = duration.days * 24*60*60 + duration.seconds + 30
     pixel_height = duration / len(args.times)
     hours = int(duration / 3600)
     minutes = int((duration - 3600*hours) / 60)
-
     if args.time_tick:
         label_format = "%H:%M:%S"
         if args.time_tick % (60*60*24) == 0:
@@ -622,4 +604,3 @@ create_labels(args, img)
 
 print("saving")
 img.save(args.output_path)
-
