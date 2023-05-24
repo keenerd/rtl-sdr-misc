@@ -1,6 +1,6 @@
-CFLAGS?=-O2 -g -Wall -W 
-CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib -I./tcp_listener
-LDFLAGS+=-lpthread -lm  -L /usr/lib/arm-linux-gnueabihf/ 
+CFLAGS?=-O2 -g -Wall  -Wimplicit-fallthrough=0 
+CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib -I./tcp_listener 
+LDFLAGS+=-lpthread -lm  -L /usr/lib/arm-linux-gnueabihf/ -L /usr/lib/i386-linux-gnu/
 
 ifeq ($(PREFIX),)
     PREFIX := /usr/local
@@ -9,7 +9,16 @@ UNAME := $(shell uname)
 ifeq ($(UNAME),Linux)
 #Conditional for Linux
 CFLAGS+= $(shell pkg-config --cflags librtlsdr)
-LDFLAGS+=$(shell pkg-config --libs librtlsdr)
+LD_LIBRTLSDR=$(shell pkg-config --libs librtlsdr)
+#Ugly hack. Check if the output of pkg-config is long enough to be valid
+LD_LIBRTLSDR_LENGTH := $(shell echo "$(LD_LIBRTLSDR)" | wc -c)
+ifeq ($(shell test $(LD_LIBRTLSDR_LENGTH) -gt 13; echo $$?),0)
+#The  pkg-config output seem to be ok, let's use it
+	LDFLAGS+=$(shell pkg-config --libs librtlsdr)
+else
+#The  pkg-config output seem to be too short, use the default lib name and default paths
+	LDFLAGS+=-lrtlsdr
+endif
 
 else
 #
@@ -67,4 +76,5 @@ clean:
 install:
 	install -d -m 755 $(DESTDIR)/$(PREFIX)/bin
 	install -m 755 $(EXECUTABLE) "$(DESTDIR)/$(PREFIX)/bin/"
+
 
