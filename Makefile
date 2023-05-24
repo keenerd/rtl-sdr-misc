@@ -1,7 +1,7 @@
 CFLAGS?=-O2 -g -Wall  -Wimplicit-fallthrough=0 
 CFLAGS+= -I./aisdecoder -I ./aisdecoder/lib -I./tcp_listener 
-LDFLAGS+=-lpthread -lm  -L /usr/lib/arm-linux-gnueabihf/ -L /usr/lib/i386-linux-gnu/
-
+LD_EXTRA_PATHS= -L /usr/lib/arm-linux-gnueabihf/ -L /usr/lib/i386-linux-gnu/ -L /usr/lib/x86_64-linux-gnu/
+LDFLAGS+=-lpthread -lm $(LD_EXTRA_PATHS)
 ifeq ($(PREFIX),)
     PREFIX := /usr/local
 endif
