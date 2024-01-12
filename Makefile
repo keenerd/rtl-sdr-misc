@@ -37,8 +37,8 @@ LIBUSB_LIB=/tmp/libusb/lib
 
 ifeq ($(UNAME),Darwin)
 #Conditional for OSX
-CFLAGS+= -I/usr/local/include/ -I$(LIBUSB_INCLUDE) -I$(RTLSDR_INCLUDE)
-LDFLAGS+= -L/usr/local/lib -L$(LIBUSB_LIB) -L$(RTLSDR_LIB) -lrtlsdr -lusb-1.0 
+CFLAGS+= -I/usr/local/include/ -I/opt/homebrew/include -I$(LIBUSB_INCLUDE) -I$(RTLSDR_INCLUDE)
+LDFLAGS+= -L/usr/local/lib -L/opt/homebrew/lib -L$(LIBUSB_LIB) -L$(RTLSDR_LIB) -lrtlsdr -lusb-1.0 
 else
 #Conditional for Windows
 CFLAGS+=-I $(LIBUSB_INCLUDE) -I $(RTLSDR_INCLUDE)
